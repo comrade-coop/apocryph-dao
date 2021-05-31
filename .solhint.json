@@ -1,0 +1,10 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "max-line-length": ["off"],
+    "compiler-version": ["error","^0.8.0"],
+    "func-visibility": ["off", "https://github.com/nomiclabs/hardhat/issues/1362", "https://github.com/protofire/solhint/issues/240"],
+    "no-empty-blocks": ["off", "https://github.com/protofire/solhint/issues/242"],
+    "mark-callable-contracts": ["off", "https://github.com/nomiclabs/hardhat/issues/1362", "https://github.com/protofire/solhint/issues/216"]
+  }
+}
