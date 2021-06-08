@@ -6,11 +6,7 @@ contract Owned {
     address public owner;
 
     constructor(address owner_) {
-        if (owner_ != address(0)) {
-            owner = owner_;
-        } else {
-            owner = address(this);
-        }
+        owner = owner_;
     }
 
     modifier onlyOwner() {

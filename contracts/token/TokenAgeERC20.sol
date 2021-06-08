@@ -16,7 +16,7 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
         balance = uint256(_getLastCheckpoint(_checkpoints[owner]).balance);
     }
 
-    function balanceOfAt(address owner, uint256 atBlock) public view returns (uint256 balance) {
+    function balanceOfAt(address owner, uint256 atBlock) external view returns (uint256 balance) {
         balance = _getCheckpoint(_checkpoints[owner], _convertTime(atBlock)).balance;
     }
 
@@ -26,17 +26,22 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     }
 
     function transferFrom(address from_, address to_, uint256 value_) public override returns (bool) { // Throws if unsufficient balance or allowance
-        allowance[from_][to_] = allowance[from_][to_] - value_; // Throws?!
+        allowance[from_][_msgSender()] = allowance[from_][_msgSender()] - value_; // Throws
         _transfer(from_, to_, uint128(value_)); // Throws
         return true;
     }
 
     function approve(address to_, uint256 value_) public override returns (bool) {
-        allowance[_msgSender()][to_] = value_;
+        _approve(_msgSender(), to_, value_);
         return true;
     }
 
-    function _transfer(address from_, address to_, uint128 value_) private { // Throws if unsufficient balance
+    function _approve(address from_, address to_, uint256 value_) internal {
+        allowance[from_][to_] = value_;
+        emit Approval(from_, to_, value_);
+    }
+
+    function _transfer(address from_, address to_, uint128 value_) internal { // Throws if unsufficient balance
         _sub(_checkpoints[from_], value_); // Throws
         _add(_checkpoints[to_], value_);
         emit Transfer(from_, to_, value_);

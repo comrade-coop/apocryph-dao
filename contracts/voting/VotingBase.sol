@@ -38,12 +38,12 @@ abstract contract VotingBase is IVotingBase {
     }
 
     function enact(uint256 voteId, VoteAction[] calldata actions_) external accessControl(_enacter) override {
-        require(canEnact(voteId));
+        require(canEnact(voteId)); // TODO: Consider a way to cleanup old inactive votes
         require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
 
         for (uint i = 0; i < actions_.length; i++) {
-            // solhint-disable-next-line indent,bracket-align
-            (bool success, bytes memory returnValue) = actions_[i].target.call{value: actions_[i].value}(actions_[i].data);
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, bytes memory returnValue) = actions_[i].target.call(actions_[i].data); // {value: actions_[i].value}
             returnValue; // Just mark the value as "used"
             require(success);
         }
@@ -52,7 +52,7 @@ abstract contract VotingBase is IVotingBase {
 
         emit Enaction(voteId);
 
-        delete actionsRoot[voteId];
+        delete actionsRoot[voteId]; // ! important, as otherwise would allow multiple enactions
         delete rationale[voteId];
     }
 

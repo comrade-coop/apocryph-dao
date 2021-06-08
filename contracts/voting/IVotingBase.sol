@@ -8,8 +8,8 @@ interface IVotingBase {
     event Enaction(uint256 voteId);
 
     struct VoteAction {
+        // uint96 value;
         address target;
-        uint256 value; // TODO: can drop?
         bytes data;
         // deadline
     }

@@ -12,9 +12,9 @@ contract Vesting is ERC721, IERC1363Receiver {
 
     struct VestingData {
         // waiting until blockcount == startBlock then periodCount x periodBlocks
-        uint256 startBlock;
-        uint256 periodCount;
-        uint256 periodBlocks;
+        uint128 startBlock;
+        uint64 periodCount;
+        uint64 periodBlocks;
         uint256 totalValue;
         uint256 released;
     }
@@ -30,21 +30,14 @@ contract Vesting is ERC721, IERC1363Receiver {
         _nextToken = 0;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return interfaceId == type(IERC1363Receiver).interfaceId
-            || super.supportsInterface(interfaceId);
-    }
-
     function onTransferReceived(address operator, address, uint256 value, bytes memory data) external override returns (bytes4) {
         require(msg.sender == address(_baseToken), "Wrong sender");
 
-        (uint256 startBlock, uint256 periodCount, uint256 periodBlocks, address receiver) = abi.decode(data, (uint256, uint256, uint256, address));
+        (address receiver, uint128 startBlock, uint64 periodCount, uint64 periodBlocks) = abi.decode(data, (address, uint128, uint64, uint64));
 
         if (receiver == address(0)) {
             receiver = operator;
         }
-
-        //uint256 mintedTokenId = (uint256) keccak256(abi.encode(value, startBlock, periodCount, periodBlocks));
 
         VestingData storage vesting = _tokenData[_nextToken];
         vesting.startBlock = startBlock;
@@ -59,21 +52,28 @@ contract Vesting is ERC721, IERC1363Receiver {
     }
 
     function claim(uint256 tokenId) external {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "claim caller is not owner nor approved"); // TODO: _msgSender()?
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "claim caller is not owner nor approved");
 
-        _claim(tokenId, msg.sender);
+        _claim(tokenId, _msgSender(), false);
     }
 
-    function claim(uint256 tokenId, address receiver) external { // NOTE: Might want to have a claim function which allows claiming on another address's behalf?
-        require(_isApprovedOrOwner(msg.sender, tokenId), "claim caller is not owner nor approved"); // TODO: _msgSender()?
+    function claim(uint256 tokenId, address receiver) external { // Needed?!
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "claim caller is not owner nor approved");
 
-        _claim(tokenId, receiver);
+        _claim(tokenId, receiver, false);
     }
 
-    function _claim(uint256 tokenId, address receiver) internal {
+    function claimAndCall(uint256 tokenId, address receiver) external {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "claim caller is not owner nor approved");
+
+        _claim(tokenId, receiver, true);
+    }
+
+    function _claim(uint256 tokenId, address receiver, bool call) internal {
+        // TODO: event
         uint256 currentBlock = block.number;
 
-        VestingData storage vesting = _tokenData[_nextToken];
+        VestingData storage vesting = _tokenData[tokenId];
 
         uint256 vestedValue = 0;
         uint256 totalValue_ = vesting.totalValue;
@@ -94,7 +94,11 @@ contract Vesting is ERC721, IERC1363Receiver {
 
         if (toRelease > 0) {
             vesting.released = vestedValue;
-            _baseToken.transferAndCall(receiver, toRelease);
+            if (call) {
+                require(_baseToken.transferAndCall(receiver, toRelease));
+            } else {
+                require(_baseToken.transfer(receiver, toRelease));
+            }
 
             if (vestedValue == totalValue_) {
                 delete _tokenData[_nextToken];

@@ -23,8 +23,8 @@ contract TokenAgeToken is TokenAgeERC1363, TokenAgeWeights {
 
     // Via https://github.com/ethereum/EIPs/issues/738#issuecomment-336277632
     function safeApprove(address to_, uint256 value_, uint256 oldValue_) public returns (bool) {
-        require(allowance[msg.sender][to_] == oldValue_);
-        allowance[msg.sender][to_] = value_;
+        require(allowance[_msgSender()][to_] == oldValue_);
+        _approve(_msgSender(), to_, value_);
         return true;
     }
 }

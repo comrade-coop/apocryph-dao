@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "./Owned.sol";
 import "../interfaces/IVotingWeights.sol";
 
-contract WeightsGroup is IVotingWeights, Owned {
+contract Group is IVotingWeights, Owned {
     struct Checkpoint {
         uint128 fromTime;
         uint128 weight;
@@ -14,7 +14,8 @@ contract WeightsGroup is IVotingWeights, Owned {
     Checkpoint private _nilCheckpoint;
     mapping(address => Checkpoint[]) internal weights;
 
-    constructor(address[] memory initialMembers, uint128[] memory initialWeights, address owner_) Owned(owner_) {
+    constructor(address[] memory initialMembers, uint128[] memory initialWeights, address owner_)
+            Owned(owner_ != address(0) ? owner_ : msg.sender) {
         for (uint256 i = 0; i < initialMembers.length; i++) {
             setWeightOf(initialMembers[i], i < initialWeights.length ? initialWeights[i] : 1);
         }

@@ -8,7 +8,7 @@ import "./VotingBase.sol";
 import "./Owned.sol";
 import "../interfaces/IVotingWeights.sol";
 
-abstract contract DeadlineVoting is IVotingWeights, Owned, VotingBase, IVoting {
+contract DeadlineVoting is Owned, VotingBase, IVoting {
     mapping(uint256 => mapping(address => VoteStatus)) public override voteOf;
 
     struct VoteCounts {
@@ -19,9 +19,13 @@ abstract contract DeadlineVoting is IVotingWeights, Owned, VotingBase, IVoting {
     mapping(uint256 => VoteCounts) public voteCounts;
     mapping(uint256 => uint256) public voteStartBlock;
 
+    IVotingWeights public weights;
     uint256 public voteDeadline; // in blocks
 
-    constructor(uint256 voteDeadline_) {
+    constructor(address proposer_, address enacter_, address owner_, IVotingWeights weights_, uint256 voteDeadline_)
+            Owned(owner_ != address(0) ? owner_ : address(this))
+            VotingBase(proposer_, enacter_) {
+        weights = weights_;
         voteDeadline = voteDeadline_;
     }
 
@@ -33,7 +37,10 @@ abstract contract DeadlineVoting is IVotingWeights, Owned, VotingBase, IVoting {
         voteStartBlock[voteId] = block.number;
     }
 
-    function enacted(uint256 voteId) internal override {}
+    function enacted(uint256 voteId) internal override {
+        // delete voteStartBlock[voteId];
+        // delete voteCounts[voteId];
+    }
 
     function isActive(uint256 voteId) internal view returns (bool) {
         return block.number < voteStartBlock[voteId] + voteDeadline;
@@ -49,7 +56,8 @@ abstract contract DeadlineVoting is IVotingWeights, Owned, VotingBase, IVoting {
 
     function _vote(uint256 voteId, address voter, VoteStatus value) internal {
         require(isActive(voteId));
-        uint256 weight = this.weightOfAt(voter, voteStartBlock[voteId]);
+        uint256 weight = weights.weightOfAt(voter, voteStartBlock[voteId]);
+        require(weight > 0);
 
         VoteStatus oldValue = voteOf[voteId][msg.sender];
         if (oldValue == VoteStatus.Yes) {
@@ -64,5 +72,6 @@ abstract contract DeadlineVoting is IVotingWeights, Owned, VotingBase, IVoting {
         } else if (value == VoteStatus.No) {
             voteCounts[voteId].countNo += weight;
         }
+        emit Vote(voteId, voter, value);
     }
 }
