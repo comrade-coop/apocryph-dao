@@ -54,7 +54,7 @@ abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
         bytes4 retval = IERC1363Receiver(recipient).onTransferReceived(
             _msgSender(), sender, amount, data
         );
-        require(retval == IERC1363Receiver(recipient).onTransferReceived.selector);
+        require(retval == IERC1363Receiver.onTransferReceived.selector);
     }
 
     function _callApprovalReceived(address spender, uint256 amount, bytes memory data) internal { // Reverts if invalid receiver
@@ -62,6 +62,6 @@ abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
         bytes4 retval = IERC1363Spender(spender).onApprovalReceived(
             _msgSender(), amount, data
         );
-        require(retval == IERC1363Spender(spender).onApprovalReceived.selector);
+        require(retval == IERC1363Spender.onApprovalReceived.selector);
     }
 }
