@@ -3,9 +3,10 @@
 pragma solidity ^0.8.0;
 pragma abicoder v2;
 
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "./IVotingBase.sol";
 
-abstract contract VotingBase is IVotingBase {
+abstract contract VotingBase is IVotingBase, ERC721Holder {
     mapping(uint256 => bytes32) public override rationale;
     mapping(uint256 => bytes32) public override actionsRoot;
 
