@@ -69,7 +69,7 @@ describe('Vesting', function () {
       .to.emit(vesting, 'Transfer').withArgs('0x' + '0'.repeat(40), accountB.address, 0) // 0 is the token ID
 
     await token.mock.transfer.withArgs(accountB.address, 0).returns(true)
-    await expect(vesting.connect(accountB)['claim(uint256)'](0)).to.not.be.reverted
+    await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
     await token.mock.transfer.withArgs(accountB.address, 0).reverts()
 
     let totalTransferred = 0
@@ -77,9 +77,9 @@ describe('Vesting', function () {
       await advanceTime(startBlock + 7 + i * 10 + 3) // +3 to avoid issue with claim happening too early..
 
       await token.mock.transfer.withArgs(accountB.address, vestingAmount / 5).returns(true)
-      await expect(vesting.connect(accountB)['claim(uint256)'](0)).to.not.be.reverted
+      await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
       await token.mock.transfer.withArgs(accountB.address, vestingAmount / 5).reverts()
-      await expect(vesting.connect(accountB)['claim(uint256)'](0)).to.not.be.reverted
+      await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
       totalTransferred += vestingAmount / 5
     }
     expect(totalTransferred).to.equal(vestingAmount)
