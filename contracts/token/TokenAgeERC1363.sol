@@ -3,7 +3,6 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../interfaces/IERC1363.sol";
@@ -12,12 +11,12 @@ import "../interfaces/IERC1363Spender.sol";
 import "./TokenAgeERC20.sol";
 
 abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
-    using Address for address;
-
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IERC1363).interfaceId
             || super.supportsInterface(interfaceId);
     }
+
+    // transfer
 
     function transferAndCall(address recipient, uint256 amount) public override returns (bool) {
         return transferAndCall(recipient, amount, "");
@@ -29,6 +28,8 @@ abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
         return true;
     }
 
+    // transferFrom
+
     function transferFromAndCall(address sender, address recipient, uint256 amount) public override returns (bool) {
         return transferFromAndCall(sender, recipient, amount, "");
     }
@@ -38,6 +39,8 @@ abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
         _callTransferReceived(sender, recipient, amount, data);
         return true;
     }
+
+    // approve
 
     function approveAndCall(address spender, uint256 amount) public override returns (bool) {
         return approveAndCall(spender, amount, "");
@@ -49,16 +52,16 @@ abstract contract TokenAgeERC1363 is IERC1363, ERC165, TokenAgeERC20 {
         return true;
     }
 
-    function _callTransferReceived(address sender, address recipient, uint256 amount, bytes memory data) internal { // Reverts if invalid receiver
-        require(recipient.isContract());
+    // interface
+
+    function _callTransferReceived(address sender, address recipient, uint256 amount, bytes memory data) internal { // Reverts if recipient is invalid
         bytes4 retval = IERC1363Receiver(recipient).onTransferReceived(
             _msgSender(), sender, amount, data
         );
         require(retval == IERC1363Receiver.onTransferReceived.selector);
     }
 
-    function _callApprovalReceived(address spender, uint256 amount, bytes memory data) internal { // Reverts if invalid receiver
-        require(spender.isContract());
+    function _callApprovalReceived(address spender, uint256 amount, bytes memory data) internal { // Reverts if spender is invalid
         bytes4 retval = IERC1363Spender(spender).onApprovalReceived(
             _msgSender(), amount, data
         );

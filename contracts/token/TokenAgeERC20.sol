@@ -13,7 +13,7 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     uint256 public override totalSupply;
 
     function balanceOf(address owner) public override view returns (uint256 balance) {
-        balance = uint256(_getLastCheckpoint(_checkpoints[owner]).balance);
+        balance = _getLastCheckpoint(_checkpoints[owner]).balance;
     }
 
     function balanceOfAt(address owner, uint256 atBlock) external view returns (uint256 balance) {
