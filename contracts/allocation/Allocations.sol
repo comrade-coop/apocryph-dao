@@ -14,14 +14,13 @@ contract Allocations {
 
     struct AllocationData { // Can potentially optimize storage by storing amounts as uint128 and time as uint64; 3 storage slots total instead of 5
         uint256 amount;
-        uint256 transferredAmount;
-        uint256 claimedAmount;
         uint256 lockTime;
+        uint256 claimAmount;
         uint256 claimStartTime;
         mapping(address => bool) supervisors;
     }
 
-    mapping(address => AllocationData) internal allocations; // TODO: Expose getters
+    mapping(address => AllocationData) internal allocationDatas;
     mapping(address => bool) internal globalSupervisors;
     uint256 internal defaultLockTime;
 
@@ -37,115 +36,160 @@ contract Allocations {
         }
     }
 
-    /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient == 0x0 ? recepient : 'all allocations (past and future)'`.
+    // Allocation
+
+    function allocation(address recepient) external view returns (uint256) {
+        return allocationDatas[recepient].amount;
+    }
+
+    function increaseAllocation(address recepient, uint256 amount) external {
+        require(msg.sender == _voting);
+
+        AllocationData storage allocationData = allocationDatas[recepient];
+        allocationData.amount = allocationData.amount + amount;
+
+        emit AllocationChanged(recepient, allocationData.amount);
+    }
+
+    function revokeAllocation(address recepient, uint256 amount) external {
+        AllocationData storage allocationData = allocationDatas[recepient];
+        require(msg.sender == _voting || msg.sender == recepient || allocationData.supervisors[msg.sender]);
+
+        allocationData.amount = allocationData.amount - amount;
+
+        if (allocationData.claimAmount > allocationData.amount) {
+            allocationData.claimAmount = allocationData.amount;
+        }
+
+        emit AllocationChanged(recepient, allocationData.amount);
+    }
+
+    // Supervisor
+
+    function isSupervisor(address recepient, address supervisor) external view returns (bool) {
+        AllocationData storage allocationData = allocationDatas[recepient];
+        return allocationData.supervisors[supervisor] || globalSupervisors[supervisor];
+    }
+
+    /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient != 0x0 ? recepient : 'all allocationDatas (past and future)'`.
     function setSupervisor(address recepient, address supervisor, bool toggle) external {
         require(msg.sender == _voting);
 
-        if (recepient == address(0)) {
-            AllocationData storage allocation = allocations[recepient];
-            allocation.supervisors[supervisor] = toggle;
+        if (recepient != address(0)) {
+            AllocationData storage allocationData = allocationDatas[recepient];
+            allocationData.supervisors[supervisor] = toggle;
         } else {
             globalSupervisors[supervisor] = toggle;
         }
     }
 
-    /// @notice Set timelock for `recepient == 0x0 ? recepient : 'all allocations (default value)'` to `timelock == 0 ? 'the default value' : timelock == (-1 : uint256) ? 'instant' : timelock + ' blocks'`.
-    function setLockTime(address recepient, uint256 lockTime) external {
-        require(msg.sender == _voting);
+    // Lock time
 
-        if (recepient == address(0)) {
-            defaultLockTime = lockTime;
+    function lockTime(address recepient) external view returns (uint256) {
+        if (recepient != address(0)) {
+            return defaultLockTime;
         } else {
-            AllocationData storage allocation = allocations[recepient];
-            allocation.lockTime = lockTime;
+            AllocationData storage allocationData = allocationDatas[recepient];
+            return allocationData.lockTime;
         }
     }
 
-    // TODO: Change to setAllocation?!
-    function increaseAllocation(address recepient, uint256 amount) external {
+    function unlockTime(address recepient) external view returns (uint256) {
+        return _getUnlockTime(allocationDatas[recepient]);
+    }
+
+    /// @notice Set timelock for `recepient != 0x0 ? recepient : 'all allocationDatas (default value)'` to `timelock == 0 ? 'the default value' : timelock == (-1 : uint256) ? 'instant' : timelock + ' blocks'`.
+    function setLockTime(address recepient, uint256 lockTime_) external {
         require(msg.sender == _voting);
 
-        AllocationData storage allocation = allocations[recepient];
-        allocation.amount = allocation.amount + amount;
-
-        emit AllocationChanged(recepient, allocation.amount);
-        // notify if contract
-    }
-
-    function revokeAllocation(address recepient, uint256 amount) external {
-        AllocationData storage allocation = allocations[recepient];
-        require(msg.sender == _voting || msg.sender == recepient || allocation.supervisors[msg.sender]);
-
-        allocation.amount = allocation.amount - amount;
-
-        if (allocation.claimedAmount > allocation.amount) {
-            allocation.claimedAmount = allocation.amount;
+        if (recepient != address(0)) {
+            defaultLockTime = lockTime_;
+        } else {
+            AllocationData storage allocationData = allocationDatas[recepient];
+            allocationData.lockTime = lockTime_;
         }
-
-        emit AllocationChanged(recepient, allocation.amount);
-        // notify if contract
     }
 
-    function proposeClaim(uint256 amount) external {
+    function _getUnlockTime(AllocationData storage allocationData) private view returns (uint256) {
+        uint256 storedLockTime = allocationData.lockTime;
+        uint256 x = storedLockTime == 0 ? defaultLockTime : storedLockTime == ~uint256(0) ? 0 : storedLockTime;
+        return allocationData.claimStartTime + x;
+    }
+
+    function _now() private view returns (uint256) {
+        return block.number;
+    }
+
+    // Claim
+
+    function claim(address recepient) external view returns (uint256) {
+        return allocationDatas[recepient].claimAmount;
+    }
+
+    function increaseClaim(uint256 amount) external {
         address recepient = msg.sender;
-        AllocationData storage allocation = allocations[recepient];
-        require(amount != 0 && allocation.amount > 0);
+        AllocationData storage allocationData = allocationDatas[recepient];
+        require(amount != 0 && allocationData.amount > 0);
 
-        allocation.claimedAmount = allocation.claimedAmount + amount;
-        if (allocation.claimedAmount > allocation.amount) {
-            allocation.claimedAmount = allocation.amount;
+        allocationData.claimAmount = allocationData.claimAmount + amount;
+        if (allocationData.claimAmount > allocationData.amount) {
+            allocationData.claimAmount = allocationData.amount;
         }
-        allocation.claimStartTime = _now();
+        allocationData.claimStartTime = _now();
 
-        emit ClaimProposed(recepient, allocation.claimedAmount);
+        emit ClaimProposed(recepient, allocationData.claimAmount);
     }
 
     function revokeClaim(address recepient) external {
-        AllocationData storage allocation = allocations[recepient];
-        require(msg.sender == _voting || msg.sender == recepient || allocation.supervisors[msg.sender] || globalSupervisors[msg.sender]);
-        // require(_now() < allocation.claimStartTime + _convertLockTime(allocation.lockTime));
+        AllocationData storage allocationData = allocationDatas[recepient];
+        require(msg.sender == _voting || msg.sender == recepient || allocationData.supervisors[msg.sender] || globalSupervisors[msg.sender]);
+        // require(_now() < _getUnlockTime(allocationData));
 
-        uint256 claimAmount = allocation.claimedAmount;
-        allocation.claimedAmount = 0;
-        allocation.claimStartTime = 0;
+        uint256 claimAmount = allocationData.claimAmount;
+        allocationData.claimAmount = 0;
+        allocationData.claimStartTime = 0;
 
         emit ClaimRevoked(recepient, claimAmount);
     }
 
     function unlockClaim(address recepient) external {
         require(msg.sender == _voting);
-        AllocationData storage allocation = allocations[recepient];
+        AllocationData storage allocationData = allocationDatas[recepient];
 
-        allocation.claimStartTime = 0;
+        allocationData.claimStartTime = 0;
 
-        //? emit ClaimUnlocked(recepient);
+        //emit ClaimUnlocked(recepient); // Seems excessive, since claim unlocking is not likely to happen
     }
 
     function enactClaim() external {
         address recepient = msg.sender;
-        AllocationData storage allocation = allocations[recepient];
-        require(_now() >= allocation.claimStartTime + _convertLockTime(allocation.lockTime));
 
-        uint256 amount = allocation.claimedAmount;
-        if (amount > allocation.amount) {
-            amount = allocation.amount;
+        AllocationData storage allocationData = allocationDatas[recepient];
+        require(_now() >= _getUnlockTime(allocationData));
+
+        uint256 amount = allocationData.claimAmount;
+        if (amount > allocationData.amount) {
+            amount = allocationData.amount;
         }
-        allocation.amount = allocation.amount - amount;
-        allocation.claimedAmount = 0;
-        allocation.claimStartTime = 0;
+        allocationData.amount = allocationData.amount - amount;
+        allocationData.claimAmount = 0;
+        allocationData.claimStartTime = 0;
 
-        allocation.transferredAmount = allocation.transferredAmount + amount;
         _token.safeTransfer(recepient, amount);
         // _token.safeTransferFrom(_voting, recepient, amount);
 
         emit ClaimEnacted(recepient, amount);
     }
 
-    function _convertLockTime(uint256 storedLockTime) private view returns (uint256) {
-        return storedLockTime == 0 ? defaultLockTime : storedLockTime == ~uint256(0) ? 0 : storedLockTime;
-    }
+    // withdraw
 
-    function _now() private view returns (uint256) {
-        return block.number;
+    function withdraw(address recepient, uint256 amount) external {
+        require(msg.sender == _voting);
+
+        if (recepient == address(0)) {
+            recepient = msg.sender;
+        }
+
+        _token.safeTransfer(recepient, amount);
     }
 }

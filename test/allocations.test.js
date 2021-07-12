@@ -91,7 +91,7 @@ describe('Allocations', function () {
       .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, allocationAmount)
 
     const startBlock = (await ethers.provider.getBlock()).number
-    await expect(allocations.connect(accountB).proposeClaim(claimAmount))
+    await expect(allocations.connect(accountB).increaseClaim(claimAmount))
       .to.emit(allocations, 'ClaimProposed').withArgs(accountB.address, claimAmount)
 
     await expect(allocations.connect(accountB).enactClaim())
@@ -133,7 +133,7 @@ describe('Allocations', function () {
 
     for (const revoker of [accountGlobalSupervisor, accountSupervisor, accountVoting, accountB]) {
       const startBlock = (await ethers.provider.getBlock()).number
-      await expect(allocations.connect(accountB).proposeClaim(claimAmount))
+      await expect(allocations.connect(accountB).increaseClaim(claimAmount))
         .to.emit(allocations, 'ClaimProposed').withArgs(accountB.address, claimAmount)
 
       await advanceTime(startBlock + 5)
@@ -149,7 +149,7 @@ describe('Allocations', function () {
 
     {
       const startBlock = (await ethers.provider.getBlock()).number
-      await expect(allocations.connect(accountB).proposeClaim(claimAmount))
+      await expect(allocations.connect(accountB).increaseClaim(claimAmount))
         .to.emit(allocations, 'ClaimProposed').withArgs(accountB.address, claimAmount)
 
       await advanceTime(startBlock + 5)
