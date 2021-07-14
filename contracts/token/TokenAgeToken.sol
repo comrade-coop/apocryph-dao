@@ -6,6 +6,8 @@ import "./TokenAgeERC1363.sol";
 import "./TokenAgeWeights.sol";
 
 contract TokenAgeToken is TokenAgeERC1363, TokenAgeWeights {
+    event Delegate(address indexed from, address indexed to);
+
     string public name;
     string public symbol;
     uint8 public decimals;
@@ -16,15 +18,14 @@ contract TokenAgeToken is TokenAgeERC1363, TokenAgeWeights {
         symbol = symbol_;
         decimals = decimals_;
         for (uint256 i = 0; i < initialOwners.length; i++) {
-            _add(_checkpoints[initialOwners[i]], initialBalances[i]);
+            _add(initialOwners[i], initialBalances[i]);
             totalSupply += uint256(initialBalances[i]);
         }
     }
 
-    // Via https://github.com/ethereum/EIPs/issues/738#issuecomment-336277632
-    function safeApprove(address to_, uint256 value_, uint256 oldValue_) public returns (bool) {
-        require(allowance[_msgSender()][to_] == oldValue_);
-        _approve(_msgSender(), to_, value_);
-        return true;
+    function delegate(address to_) public {
+        _setDelegate(_msgSender(), to_);
+
+        emit Delegate(_msgSender(), to_);
     }
 }

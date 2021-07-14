@@ -3,39 +3,126 @@
 pragma solidity ^0.8.0;
 
 abstract contract TokenAgeCheckpointing {
-    struct Checkpoint {
-        // Packed: sizeof(fromTime) == sizeof(tokenAgeStartTime), sizeof(tokenAgeUnder) == sizeof(balance) + sizeof(tokenAgeStartTime), sizeof(under) ~=~ sizeof(fromTime)
-        uint64 fromTime;
-        uint64 tokenAgeStartTime;
-        uint128 balance;
-        uint64 under; // index into the checkpoints array, 1-based to make default 0 value point to nil
-        uint192 tokenAgeUnder;
+    struct BalanceCheckpoint {
+        uint64 fromTime; // 96
+        uint192 balance; // 160
+        uint256 tokenAge;
     }
-    Checkpoint private _nilCheckpoint; // to be considered constant
+    struct DelegateCheckpoint {
+        uint64 fromTime; // 96
+        address delegate; // ==160
+    }
+    BalanceCheckpoint private _nilBalanceCheckpoint;
+    DelegateCheckpoint private _nilDelegateCheckpoint;
 
-    // Time
+    mapping (address => BalanceCheckpoint[]) internal balanceStacks; // Note: reusing BalanceCheckpoint struct as it is the same what a BalanceStackItem would be
+    mapping (address => BalanceCheckpoint[]) internal delegatedBalanceCheckpoints;
+    mapping (address => DelegateCheckpoint[]) internal delegateCheckpoints;
 
-    function _currentTime() internal view returns (uint64) {
-        return _convertTime(block.number);
+    // Helpers manipulating the stack and checkpoints
+
+    function _add(address owner, uint192 balanceDifference) internal {
+        BalanceCheckpoint[] storage stack = balanceStacks[owner];
+
+        BalanceCheckpoint storage lastStackItem = _getLastCheckpoint(stack);
+        uint256 lastTokenAge = _getTokenAge(lastStackItem, _currentTime());
+
+        BalanceCheckpoint storage newStackItem = _pushCheckpoint(stack);
+        newStackItem.balance = lastStackItem.balance + balanceDifference;
+        newStackItem.tokenAge = lastTokenAge;
+
+        _updateDelegatedBalances(owner, int192(balanceDifference), 0); // We know that newTokenAge == lastTokenAge, since newStackItem.fromTime == _currentTime()
     }
 
-    function _convertTime(uint256 blockNumber) internal pure returns (uint64) {
-        return uint64(blockNumber);
+    function _sub(address owner, uint192 balanceDifference) internal { // Throws if unsufficient balance
+        BalanceCheckpoint[] storage stack = balanceStacks[owner];
+
+        BalanceCheckpoint storage lastStackItem = _getLastCheckpoint(stack);
+        uint192 newBalance = lastStackItem.balance - balanceDifference; // Throws
+
+        uint256 lastTokenAge = _getTokenAge(lastStackItem, _currentTime());
+
+        if (newBalance == 0) {
+            delete balanceStacks[owner];
+        } else {
+            while (stack.length > 1 && newBalance <= stack[stack.length - 2].balance) {
+                stack.pop();
+            }
+
+            stack[stack.length - 1].balance = newBalance; // We know that stack.length > 0, because _getLastCheckpoint did not return nilCheckpoint
+        }
+
+        uint256 newTokenAge = _getTokenAge(_getLastCheckpoint(stack), _currentTime()); // lastStackItem is invalid here
+
+        _updateDelegatedBalances(owner, -int192(balanceDifference), int256(newTokenAge) - int256(lastTokenAge));
     }
 
-    // Checkpoints
+    function _setDelegate(address owner, address newDelegate) internal {
+        DelegateCheckpoint[] storage checkpoints = delegateCheckpoints[owner];
 
-    function _getLastCheckpoint(Checkpoint[] storage checkpoints) internal view returns (Checkpoint storage checkpoint) { // `checkpoint` is constant
+        BalanceCheckpoint storage lastBalanceCheckpoint = _getLastCheckpoint(delegatedBalanceCheckpoints[owner]);
+        int192 delegatedBalance = int192(lastBalanceCheckpoint.balance);
+        int256 delegatedTokenAge = int256(_getTokenAge(lastBalanceCheckpoint, _currentTime()));
+
+        address oldDelegate = _getLastCheckpoint(checkpoints).delegate;
+
+        _updateDelegatedBalances(oldDelegate, -delegatedBalance, -delegatedTokenAge);
+
+        DelegateCheckpoint storage newDelegateCheckpoint = _pushCheckpoint(checkpoints);
+        newDelegateCheckpoint.delegate = newDelegate;
+
+        _updateDelegatedBalances(newDelegate, delegatedBalance, delegatedTokenAge);
+
+    }
+
+    function _updateDelegatedBalances(address delegate, int192 balanceChange, int256 tokenAgeChange) internal {
+        uint64 currentTime = _currentTime();
+
+        address delegateIterator = delegate;
+        while (delegateIterator != address(0)) {
+            BalanceCheckpoint[] storage balanceCheckpoints = delegatedBalanceCheckpoints[delegateIterator];
+            BalanceCheckpoint storage lastCheckpoint = _getLastCheckpoint(balanceCheckpoints);
+
+            uint256 newTokenAge = uint256(int256(_getTokenAge(lastCheckpoint, currentTime)) + tokenAgeChange);
+
+            BalanceCheckpoint storage newCheckpoint = _pushCheckpoint(balanceCheckpoints);
+
+            newCheckpoint.balance = uint192(int192(lastCheckpoint.balance) + balanceChange);
+            newCheckpoint.tokenAge = newTokenAge;
+
+            delegateIterator = _getLastCheckpoint(delegateCheckpoints[delegateIterator]).delegate;
+            require(delegateIterator != delegate);
+        }
+    }
+
+    // Token age helper
+
+    function _getTokenAge(BalanceCheckpoint storage checkpoint, uint64 blockAt) internal view returns (uint256 tokenAge) {
+        tokenAge = checkpoint.tokenAge + uint256(checkpoint.balance) * (blockAt - checkpoint.fromTime);
+    }
+
+    // getLastCheckpoint
+
+    function _getLastCheckpoint(BalanceCheckpoint[] storage checkpoints) internal view returns (BalanceCheckpoint storage checkpoint) {
         if (checkpoints.length == 0) {
-            checkpoint = _nilCheckpoint;
+            checkpoint = _nilBalanceCheckpoint;
         } else {
             checkpoint = checkpoints[checkpoints.length - 1];
         }
     }
 
-    function _getCheckpoint(Checkpoint[] storage checkpoints, uint64 atTime) internal view returns (Checkpoint storage) { // Return value is constant
-        // Via https://en.wikipedia.org/wiki/Binary_search_algorithm#Procedure_for_finding_the_rightmost_element
-        if (checkpoints.length == 0 || atTime < checkpoints[0].fromTime) return _nilCheckpoint;
+    function _getLastCheckpoint(DelegateCheckpoint[] storage checkpoints) internal view returns (DelegateCheckpoint storage checkpoint) {
+        if (checkpoints.length == 0) {
+            checkpoint = _nilDelegateCheckpoint;
+        } else {
+            checkpoint = checkpoints[checkpoints.length - 1];
+        }
+    }
+
+    // getCheckpoint; binary search via https://en.wikipedia.org/wiki/Binary_search_algorithm#Procedure_for_finding_the_rightmost_element
+
+    function _getCheckpoint(BalanceCheckpoint[] storage checkpoints, uint64 atTime) internal view returns (BalanceCheckpoint storage) {
+        if (checkpoints.length == 0 || atTime < checkpoints[0].fromTime) return _nilBalanceCheckpoint;
         if (atTime >= checkpoints[checkpoints.length - 1].fromTime) return checkpoints[checkpoints.length - 1];
 
         uint256 start = 0;
@@ -52,7 +139,27 @@ abstract contract TokenAgeCheckpointing {
         return checkpoints[end - 1];
     }
 
-    function _pushCheckpoint(Checkpoint[] storage checkpoints) internal returns (Checkpoint storage checkpoint, Checkpoint storage previousCheckpoint) { // `previousCheckpoint` is constant
+    function _getCheckpoint(DelegateCheckpoint[] storage checkpoints, uint64 atTime) internal view returns (DelegateCheckpoint storage) {
+        if (checkpoints.length == 0 || atTime < checkpoints[0].fromTime) return _nilDelegateCheckpoint;
+        if (atTime >= checkpoints[checkpoints.length - 1].fromTime) return checkpoints[checkpoints.length - 1];
+
+        uint256 start = 0;
+        uint256 end = checkpoints.length;
+        while (start < end) {
+            uint256 mid = (start + end) / 2; // floor
+            if (checkpoints[mid].fromTime > atTime) {
+                end = mid;
+            } else {
+                start = mid + 1;
+            }
+        }
+
+        return checkpoints[end - 1];
+    }
+
+    // pushCheckpoint
+
+    function _pushCheckpoint(BalanceCheckpoint[] storage checkpoints) internal returns (BalanceCheckpoint storage checkpoint) {
         uint64 currentTime = _currentTime();
 
         if (checkpoints.length > 0 && checkpoints[checkpoints.length - 1].fromTime == currentTime) {
@@ -61,84 +168,26 @@ abstract contract TokenAgeCheckpointing {
             checkpoint = checkpoints.push();
             checkpoint.fromTime = currentTime;
         }
+    }
 
-        if (checkpoints.length > 1) {
-            previousCheckpoint = checkpoints[checkpoints.length - 2]; // .length - 1 is `checkpoint`
+    function _pushCheckpoint(DelegateCheckpoint[] storage checkpoints) internal returns (DelegateCheckpoint storage checkpoint) {
+        uint64 currentTime = _currentTime();
+
+        if (checkpoints.length > 0 && checkpoints[checkpoints.length - 1].fromTime == currentTime) {
+            checkpoint = checkpoints[checkpoints.length - 1];
         } else {
-            previousCheckpoint = _nilCheckpoint;
+            checkpoint = checkpoints.push();
+            checkpoint.fromTime = currentTime;
         }
     }
 
-    // Token age
+    // Time
 
-    function _getTokenAge(Checkpoint storage checkpoint, uint64 blockAt) internal view returns (uint192 tokenAge) {
-        tokenAge = checkpoint.tokenAgeUnder + checkpoint.balance * (blockAt - checkpoint.tokenAgeStartTime);
+    function _currentTime() internal view returns (uint64) {
+        return _convertTime(block.number);
     }
 
-    function _add(Checkpoint[] storage checkpoints, uint128 amount) internal { // Does not update totalSupply
-        if (amount == 0) return; // Avoid creating extra checkpoints for 0-value transfers
-
-        uint128 newBalance = _getLastCheckpoint(checkpoints).balance + amount; // Throws on overflow
-        _updateBalance(checkpoints, newBalance);
-    }
-
-    function _sub(Checkpoint[] storage checkpoints, uint128 amount) internal { // Throws if unsufficient balance; does not update totalSupply
-        if (amount == 0) return; // Avoid creating extra checkpoints for 0-value transfers
-
-        uint128 newBalance = _getLastCheckpoint(checkpoints).balance - amount; // Throws on underflow
-        _updateBalance(checkpoints, newBalance);
-    }
-
-    function _updateBalance(Checkpoint[] storage checkpoints, uint128 newBalance) internal { // Does not update totalSupply
-        // A bit of explanation...
-
-        // We want to store tokens of different ages in order to be able to keep track of token age
-        // Naively storing that as an array means we need O(transactions) to get the total token age or total balance
-        //   tokens = [ [startBlock = 5, amount = 10], [startBlock = 7, amount = 10] ]
-        // We can optimize that by observing that when the user will only care to remove the most-recently-added tokens, as the others have higher tokenAge
-        // Hence we start treating the array as a stack of token amounts, and store `tokenAgeUnder` along with changing `amount` for `balance`
-        //   tokens = [ [startBlock = 5, balance = 10, tokenAgeUnder = 0], [startBlock = 7, balance = 20, tokenAgeUnder = 20] ]
-        // To maintain the structure, we pop the topmost element whenever `tokens[-1].amount < 0`, i.e. `tokens[-1].balance > tokens[-2].balance`
-
-        // However, when we introduce checkpoints for history, we are stuck with two datastructure that take O(transactions) storage space and have practically the same fields
-        // The main difference is that while in our stack we had the invariant that tokens[n].balance > tokens[n - 1].balance, the checkpoints have no such invariant
-        // So, we create a "stack" structure by using a linked list.
-        //   checkpoints = [ ..
-        //     #1 = [checkpointBlock = 5, startBlock = 5, balance = 10, tokenAgeUnder = 0, under = <nil>], ..
-        //     #3 = [checkpointBlock = 7, startBlock = 7, balance = 20, tokenAgeUnder = 20, under = #1] ]
-        // Observe that the `checkpointBlock` and the `startBlock` we had from before can be different if the balance is decreased
-        //   tokens(t=7) = [ [startBlock = 5, balance = 10, tokenAgeUnder = 0], [startBlock = 7, balance = 20, tokenAgeUnder = 20] ]
-        //   tokens(t=8) = [ [startBlock = 5, balance = 10, tokenAgeUnder = 0], [startBlock = 7, balance = 19, tokenAgeUnder = 20] ]
-        //   checkpoints = [
-        //     #0 = [checkpointBlock = 5, startBlock = 5, balance = 10, tokenAgeUnder = 0, under = <nil> ],
-        //     #1 = [checkpointBlock = 7, startBlock = 7, balance = 20, tokenAgeUnder = 20, under = #0 ],
-        //     #2 = [checkpointBlock = 8, startBlock = 7, balance = 19, tokenAgeUnder = 20, under = #0] ]
-        // It seems possible to merge `checkpointBlock` and `startBlock` into one number by modifying `tokenAgeUnder`; but I have not found an easy way to recreate the `tokens` stack in all cases.
-
-        // NOTE: due to _pushCheckpoint() reusing the top checkpoint when it is for the same block, this solution does not exactly match the token stack one
-
-        (Checkpoint storage newCheckpoint, Checkpoint storage oldCheckpoint) = _pushCheckpoint(checkpoints);
-
-        if (newBalance > oldCheckpoint.balance) { // balance > oldBalance: we are pushing to the stack
-            uint64 currentTime = _currentTime();
-
-            newCheckpoint.tokenAgeStartTime = currentTime;
-            newCheckpoint.balance = newBalance;
-            newCheckpoint.under = uint64(checkpoints.length - 1);
-            newCheckpoint.tokenAgeUnder = _getTokenAge(oldCheckpoint, currentTime);
-        } else { // balance <= oldBalance: we are modifying the stack top and/or popping
-            Checkpoint storage tokenSourceCheckpoint = oldCheckpoint;
-            uint64 newPrevious = tokenSourceCheckpoint.under;
-
-            while (newPrevious > 0 && newBalance < checkpoints[newPrevious - 1].balance) {
-                tokenSourceCheckpoint = checkpoints[newPrevious - 1];
-                newPrevious = tokenSourceCheckpoint.under;
-            }
-
-            newCheckpoint.tokenAgeStartTime = tokenSourceCheckpoint.tokenAgeStartTime;
-            newCheckpoint.balance = newBalance;
-            newCheckpoint.under = newPrevious;
-            newCheckpoint.tokenAgeUnder = tokenSourceCheckpoint.tokenAgeUnder;
-        }
+    function _convertTime(uint256 blockNumber) internal pure returns (uint64) {
+        return uint64(blockNumber);
     }
 }

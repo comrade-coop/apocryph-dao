@@ -18,7 +18,6 @@ describe('TokenAgeToken', function () {
       expect(await token.balanceOf(k)).to.equal(v)
     }
   })
-
   it('ERC20 Transfer', async function () {
     const TokenAgeToken = await ethers.getContractFactory('TokenAgeToken')
     const [accountA, accountB] = await ethers.getSigners()
@@ -30,6 +29,9 @@ describe('TokenAgeToken', function () {
 
     expect(await token.balanceOf(accountA.address)).to.equal(initialBalanceA)
     expect(await token.balanceOf(accountB.address)).to.equal(0)
+
+    await expect(token.connect(accountB).transfer(accountA.address, transferAmount))
+      .to.be.reverted
 
     await expect(token.connect(accountA).transfer(accountB.address, transferAmount))
       .to.emit(token, 'Transfer').withArgs(accountA.address, accountB.address, transferAmount)
@@ -46,7 +48,6 @@ describe('TokenAgeToken', function () {
     expect(await token.balanceOf(accountA.address)).to.equal(0)
     expect(await token.balanceOf(accountB.address)).to.equal(0 + initialBalanceA)
   })
-
   it('ERC20 Approve', async function () {
     const TokenAgeToken = await ethers.getContractFactory('TokenAgeToken')
     const [accountA, accountB, accountC] = await ethers.getSigners()
@@ -259,7 +260,7 @@ describe('TokenAgeToken', function () {
     await token.deployTransaction.wait()
 
     const weightWrapper = (address, block) => block === undefined ? token.weightOf(address) : token.weightOfAt(address, block)
-    const balanceWrapper = (address, block) => block === undefined ? token.balanceOf(address) : token.balanceOfAt(address, block)
+    const balanceWrapper = (address, block) => block === undefined ? token.delegatedBalanceOf(address) : token.delegatedBalanceOfAt(address, block)
 
     await testHistory([
       [1, async block => {
@@ -300,7 +301,7 @@ describe('TokenAgeToken', function () {
     await token.deployTransaction.wait()
 
     const weightWrapper = (address, block) => block === undefined ? token.weightOf(address) : token.weightOfAt(address, block)
-    const balanceWrapper = (address, block) => block === undefined ? token.balanceOf(address) : token.balanceOfAt(address, block)
+    const balanceWrapper = (address, block) => block === undefined ? token.delegatedBalanceOf(address) : token.delegatedBalanceOfAt(address, block)
 
     await testHistory([
       [1, async _ => {
@@ -313,9 +314,93 @@ describe('TokenAgeToken', function () {
       }, async block => {
         expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA)
         expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB)
-        expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 1)
+        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 1) // Flash tansfers "reset" the tokens
         expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 1)
       }]
     ])
+  })
+
+  it('Delegate Token age/History', async function () {
+    const TokenAgeToken = await ethers.getContractFactory('TokenAgeToken')
+    const [accountA, accountB, accountC] = await ethers.getSigners()
+
+    const initialBalanceA = 1000
+    const initialBalanceB = 500
+    const transferAmount = 300
+    const token = await TokenAgeToken.deploy('Test Token', 'TEST', 6, [accountA.address, accountB.address], [initialBalanceA, initialBalanceB])
+    await token.deployTransaction.wait()
+
+    const weightWrapper = (address, block) => block === undefined ? token.weightOf(address) : token.weightOfAt(address, block)
+    const delegatedBalanceWrapper = (address, block) => block === undefined ? token.delegatedBalanceOf(address) : token.delegatedBalanceOfAt(address, block)
+
+    await testHistory([
+      [1, async block => {
+        expect(await delegatedBalanceWrapper(accountA.address, block)).to.equal(initialBalanceA);
+        expect(await delegatedBalanceWrapper(accountB.address, block)).to.equal(initialBalanceB);
+        expect(await delegatedBalanceWrapper(accountC.address, block)).to.equal(0);
+        expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 1);
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 1);
+      }],
+      [3, async _ => {
+        await expect(token.connect(accountA).delegate(accountC.address))
+          .to.emit(token, 'Delegate').withArgs(accountA.address, accountC.address)
+      }, async block => {
+        if (block == undefined) expect(await token.balanceOf(accountA.address)).to.equal(initialBalanceA);
+        if (block == undefined) expect(await token.balanceOf(accountC.address)).to.equal(0);
+
+        expect(await delegatedBalanceWrapper(accountA.address, block)).to.equal(initialBalanceA);
+        expect(await delegatedBalanceWrapper(accountC.address, block)).to.equal(initialBalanceA);
+        expect(await delegatedBalanceWrapper(accountB.address, block)).to.equal(initialBalanceB);
+        expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 3);
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 3);
+        expect(await weightWrapper(accountC.address, block)).to.equal(initialBalanceA * 3);
+      }],
+      [5, async _ => {
+        await Promise.all([
+          expect((await token.connect(accountC).transfer(accountB.address, transferAmount)).wait()) // What on earth
+            .to.be.reverted,
+          expect(token.connect(accountA).transfer(accountB.address, transferAmount))
+            .to.emit(token, 'Transfer').withArgs(accountA.address, accountB.address, transferAmount)
+        ])
+      }, async block => {
+        expect(await delegatedBalanceWrapper(accountA.address, block)).to.equal(initialBalanceA - transferAmount);
+        expect(await delegatedBalanceWrapper(accountC.address, block)).to.equal(initialBalanceA - transferAmount);
+        expect(await delegatedBalanceWrapper(accountB.address, block)).to.equal(initialBalanceB + transferAmount);
+        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 5);
+        expect(await weightWrapper(accountC.address, block)).to.equal((initialBalanceA - transferAmount) * 5);
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 5);
+      }],
+      [7, async _ => {
+        await expect(token.connect(accountB).delegate(accountC.address))
+          .to.emit(token, 'Delegate').withArgs(accountB.address, accountC.address)
+      }, async block => {
+        expect(await delegatedBalanceWrapper(accountA.address, block)).to.equal(initialBalanceA - transferAmount);
+        expect(await delegatedBalanceWrapper(accountB.address, block)).to.equal(initialBalanceB + transferAmount);
+        expect(await delegatedBalanceWrapper(accountC.address, block)).to.equal(initialBalanceA + initialBalanceB);
+        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 7);
+        expect(await weightWrapper(accountC.address, block)).to.equal((initialBalanceA - transferAmount) * 7 + initialBalanceB * 7 + transferAmount * 2);
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 7 + transferAmount * 2);
+      }]
+    ])
+  })
+
+  it('Delegate recursive', async function () {
+    const TokenAgeToken = await ethers.getContractFactory('TokenAgeToken')
+    const [accountA, accountB, accountC] = await ethers.getSigners()
+
+    const initialBalanceA = 1000
+    const initialBalanceB = 500
+    const token = await TokenAgeToken.deploy('Test Token', 'TEST', 6, [accountA.address, accountB.address], [initialBalanceA, initialBalanceB])
+    await token.deployTransaction.wait()
+
+    const weightWrapper = (address, block) => block === undefined ? token.weightOf(address) : token.weightOfAt(address, block)
+    const delegatedBalanceWrapper = (address, block) => block === undefined ? token.delegatedBalanceOf(address) : token.delegatedBalanceOfAt(address, block)
+
+    await expect(token.connect(accountA).delegate(accountB.address))
+      .to.emit(token, 'Delegate').withArgs(accountA.address, accountB.address)
+
+    await expect(token.connect(accountB).delegate(accountA.address))
+      .to.be.reverted
+
   })
 })

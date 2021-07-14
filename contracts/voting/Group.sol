@@ -9,22 +9,38 @@ import "../interfaces/IVotingWeights.sol";
 contract Group is IVotingWeights, Owned, GroupCheckpointing {
     mapping(address => Checkpoint[]) internal weights;
 
-    constructor(address[] memory initialMembers, uint128[] memory initialWeights, address owner_)
+    constructor(address[] memory initialMembers, uint256[] memory initialWeights, address owner_)
             Owned(owner_ != address(0) ? owner_ : msg.sender) {
         for (uint256 i = 0; i < initialMembers.length; i++) {
-            setWeightOf(initialMembers[i], i < initialWeights.length ? initialWeights[i] : 1);
+            _setWeightOf(initialMembers[i], uint160(i < initialWeights.length ? initialWeights[i] : 1));
         }
     }
 
-    function setWeightOf(address member, uint128 weight) public onlyOwner {
-        _pushCheckpoint(weights[member]).weight = weight;
+    function setWeightOf(address member, uint256 weight) external onlyOwner {
+        _setWeightOf(member, uint160(weight));
     }
 
-    function weightOf(address member) public view returns (uint256) {
-        return _getLastCheckpoint(weights[member]).weight;
+    function _setWeightOf(address member, uint160 weight) internal {
+        _pushCheckpoint(weights[member]).value = weight;
+    }
+
+    function weightOf(address member) external view returns (uint256) {
+        return _weightOf(member);
+    }
+
+    function _weightOf(address member) internal view returns (uint160) {
+        return _getLastCheckpoint(weights[member]).value;
     }
 
     function weightOfAt(address member, uint256 atBlock) public override view returns (uint256) {
-        return _getCheckpoint(weights[member], _convertTime(atBlock)).weight;
+        return _getCheckpoint(weights[member], _convertTime(atBlock)).value;
+    }
+
+    function delegateOf(address) public virtual view returns (address) {
+        return address(0);
+    }
+
+    function delegateOfAt(address, uint256) public virtual override view returns (address) {
+        return address(0);
     }
 }
