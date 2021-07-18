@@ -17,7 +17,7 @@ The issues have the following structure:
 - well defined **acceptance criteria**
 - **story points** as part of the issue description
 
-The story points gives notation on the complexity of the issue and can be indicative for the estimates time duration. The guidance for assigning story points is the following:
+The story points gives notation on the complexity of the issue and can be indicative for the estimated time duration. The guidance for assigning story points is the following:
 - **1** and **2** story points are reserved for minor tasks that take less than **4 hours**;
 - **3** points are reserved for tasks that will likely take **a day**;
 - **5** points are for tasks that will take at least a day, but no more than **two days**;
@@ -26,10 +26,15 @@ The story points gives notation on the complexity of the issue and can be indica
 
 ### Ready to make a change? Fork the repo and prepare a pull request
 All contributions to the repo are managed using pull requests, reviewed and approved by the maintainers. The pull requests should have the following structure:
-- the name of the request should be `close #<issue-number> <issue-title>`
+- the name of the request should be `<issue-title>`
 - all of the changes should be squashed into a single commit before submitting the pull request
 - the message of the single commit should follow [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/) structure, where the body should contain link to the issue number and the issue story points: `close #<issue-number> for <story-points> story points`  
-- the single commit should be signed using a [verifiable by GitHub GPG key](https://docs.github.com/en/github/authenticating-to-github/managing-commit-signature-verification/signing-commits).
+- the single commit should be signed using a [GPG key verifiable by GitHub](https://docs.github.com/en/github/authenticating-to-github/managing-commit-signature-verification/signing-commits).
+
+Often you will have to implement changes to you open pull request, to do this we recommend that you ammend you commit (using `git commit --amend`). 
+Make sure that after amending your commit you will have to force-push it (using `git push --force`).
+
+If you open a pull request without an issue or in relation to an issue that is not marked as "open to contribution" and your pull request is considered as valueable contribution by the maintainers, they will create / update the corresponding issue and they will ask you to ammend your commit message and pull request title.
 
 ## Rewarding contributions
 Apocryph project is using a decentralized governence model based on [DAO](https://en.wikipedia.org/wiki/Decentralized_autonomous_organization) concept. Apocryph DAO allocates part of Apocryph token for project contributors. On a regular basis, using voting, part of that token is be distributed to contributors according to story points of their contributions over period of time. 
