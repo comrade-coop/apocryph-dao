@@ -31,8 +31,7 @@ All contributions to the repo are managed using pull requests, reviewed and appr
 - the message of the single commit should follow [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/) structure, where the body should contain link to the issue number and the issue story points: `close #<issue-number> for <story-points> story points`  
 - the single commit should be signed using a [GPG key verifiable by GitHub](https://docs.github.com/en/github/authenticating-to-github/managing-commit-signature-verification/signing-commits).
 
-Often you will have to implement changes to you open pull request, to do this we recommend that you ammend you commit (using `git commit --amend`). 
-Make sure that after amending your commit you will have to force-push it (using `git push --force`).
+Often you will have to implement changes to your open pull request. In this situation, we recommend that you ammend the single commit used for the pull request (using `git commit --amend`). Have in mind that after amending your commit, you will have to force-push it (using `git push --force`).
 
 If you open a pull request without an issue or in relation to an issue that is not marked as "open to contribution" and your pull request is considered as valueable contribution by the maintainers, they will create / update the corresponding issue and they will ask you to ammend your commit message and pull request title.
 
