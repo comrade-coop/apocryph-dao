@@ -7,9 +7,9 @@ Before you begin:
 - Setup your local environment according to the README / documentation.
 
 ## How to contribute?
-When contributing to this repository, please first pick an issue marked as "open to contributors" or initiate a discussion using a new issue. You can check the suitable issues for the repository or check the Apocryph GitHub Project for overview of all open issues across all repositories.
+When contributing to this repository, please first pick an issue marked as "open to contributors" or initiate a discussion using a new issue. You can check the suitable issues for the repository or check the [Apocryph GitHub Project](https://github.com/orgs/comrade-coop/projects/1) for overview of all open issues across all repositories.
 
-### What are issues open to contributors?
+### What are "open to contributors" issues?
 All of the work in the project is organized using milestones and issues. Certain issues are marked as "open to contributors". These issues are specifically curated by the maintainers as suitable for contributors. 
 
 The issues have the following structure:
