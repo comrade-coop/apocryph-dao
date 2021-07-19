@@ -24,7 +24,7 @@ contract Allocations {
     mapping(address => bool) internal globalSupervisors;
     uint256 internal defaultLockTime;
 
-    address internal _voting;
+    address internal _voting; // TODO: Should used `voting/Owned` instead?
     IERC20 internal _token;
 
     constructor(IERC20 token_, address voting_, uint256 defaultLockTime_, address[] memory globalSupervisors_) {

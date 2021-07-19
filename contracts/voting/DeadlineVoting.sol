@@ -25,6 +25,7 @@ contract DeadlineVoting is VotingBase, IVoting {
             VotingBase(owner_, proposer_, enacter_) {
         weights = weights_;
         voteDeadline = voteDeadline_;
+        // TODO: make it possible to restrict proposer and enacter to members only!
     }
 
     // Deadline

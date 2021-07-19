@@ -61,10 +61,14 @@ contract BondingCurve is IERC1363Spender {
     }
 
     function initialize() external {
+        _initialize(msg.sender);
+    }
+
+    function _initialize(address sender) internal {
         require(!active, "Active");
         uint256 balanceA = tokenA.balanceOf(address(this));
         if (balanceA < totalBalanceA) {
-            tokenA.safeTransferFrom(msg.sender, address(this), totalBalanceA - balanceA);
+            tokenA.safeTransferFrom(sender, address(this), totalBalanceA - balanceA);
         }
         active = true;
     }
@@ -141,8 +145,12 @@ contract BondingCurve is IERC1363Spender {
             (uint256 amountA, address receiver) = abi.decode(data, (uint256, address));
             _buy(owner, amountA, value, receiver);
         } else if (msg.sender == address(tokenA)) {
-            (uint256 minAmountB, address receiver) = abi.decode(data, (uint256, address));
-            _sell(owner, value, minAmountB, receiver);
+            if (!active) {
+                _initialize(owner);
+            } else {
+                (uint256 minAmountB, address receiver) = abi.decode(data, (uint256, address));
+                _sell(owner, value, minAmountB, receiver);
+            }
         } else {
             revert();
         }

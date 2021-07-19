@@ -120,7 +120,7 @@ contract Vesting is ERC721, IERC1363Receiver {
             return 0;
         }
 
-        uint256 currentPeriod = (currentBlock - startBlock) / periodBlocks;
+        uint256 currentPeriod = periodBlocks == 0 ? periodCount : (currentBlock - startBlock) / periodBlocks;
 
         if (currentPeriod >= periodCount) {
             return totalValue;

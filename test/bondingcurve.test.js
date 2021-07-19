@@ -195,7 +195,7 @@ describe('Bonding curve', function () {
     await tokenB.connect(accountB).approve(bondingCurve.address, initialSupply + 1)
     await tokenA.connect(accountB).approve(bondingCurve.address, 1)
 
-    var startBlock = (await ethers.provider.getBlock()).number
+    let startBlock = (await ethers.provider.getBlock()).number
     await expect(bondingCurve.connect(accountB).buy(initialSupply - transitionAmount, initialSupply - transitionAmount, nilAddress))
       .to.emit(bondingCurve, 'TransitionStart')
 

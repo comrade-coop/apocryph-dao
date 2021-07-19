@@ -263,28 +263,28 @@ describe('TokenAgeToken', function () {
 
     await testHistory([
       [1, async block => {
-        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA);
-        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB);
-        expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 1);
-        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 1);
+        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA)
+        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB)
+        expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 1)
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 1)
       }],
       [3, async _ => {
         await expect(token.connect(accountA).transfer(accountB.address, transferAmount))
           .to.emit(token, 'Transfer').withArgs(accountA.address, accountB.address, transferAmount)
       }, async block => {
-        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA - transferAmount);
-        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB + transferAmount);
-        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 3);
-        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 3);
+        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA - transferAmount)
+        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB + transferAmount)
+        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 3)
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 3)
       }],
       [5, async _ => {
         await expect(token.connect(accountB).transfer(accountA.address, transferAmount))
           .to.emit(token, 'Transfer').withArgs(accountB.address, accountA.address, transferAmount)
       }, async block => {
-        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA);
-        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB);
-        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 5);
-        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 5);
+        expect(await balanceWrapper(accountA.address, block)).to.equal(initialBalanceA)
+        expect(await balanceWrapper(accountB.address, block)).to.equal(initialBalanceB)
+        expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 5)
+        expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 5)
       }]
     ])
   })
