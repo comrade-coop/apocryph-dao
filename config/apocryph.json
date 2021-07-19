@@ -38,7 +38,9 @@
   "coreTeam": {
     "type": "Voting",
     "name": "Core Team",
-    "weights": "coreTeamGroup"
+    "weights": "coreTeamGroup",
+    "proposer": "(members)",
+    "enacter": "(members)"
   },
 
   "apocryphToken": {

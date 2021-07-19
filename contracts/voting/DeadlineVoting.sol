@@ -25,7 +25,11 @@ contract DeadlineVoting is VotingBase, IVoting {
             VotingBase(owner_, proposer_, enacter_) {
         weights = weights_;
         voteDeadline = voteDeadline_;
-        // TODO: make it possible to restrict proposer and enacter to members only!
+    }
+
+    modifier onlyACL(address wanted) virtual override {
+        require(wanted == address(0) || (wanted == address(1) && weights.weightOf(msg.sender) > 0) || wanted == msg.sender);
+        _;
     }
 
     // Deadline

@@ -6,7 +6,7 @@ import "./TokenAgeERC20.sol";
 import "../interfaces/IVotingWeights.sol";
 
 contract TokenAgeWeights is TokenAgeERC20, IVotingWeights {
-    function weightOf(address owner) public view returns (uint256 weight) {
+    function weightOf(address owner) public override view returns (uint256 weight) {
         Checkpoint storage checkpoint = _getLastCheckpoint(_checkpoints[owner]);
         weight = _getTokenAge(checkpoint, _currentTime());
     }

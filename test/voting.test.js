@@ -1,6 +1,7 @@
 const { expect } = require('chai')
 
 const nilAddress = '0x' + '00'.repeat(20)
+const oneAddress = '0x' + '00'.repeat(19) + '01'
 
 describe('DeadlingVoting', function () {
   async function advanceTime (toBlock) {
@@ -23,6 +24,38 @@ describe('DeadlingVoting', function () {
 
     await expect(group.connect(accountA).setOwner(voting.address))
       .to.not.be.reverted
+  })
+
+  it('Proposer ACL', async function () {
+    const Group = await ethers.getContractFactory('Group')
+    const DeadlineVoting = await ethers.getContractFactory('DeadlineVoting')
+    const [accountOwner, accountMember, accountOther] = await ethers.getSigners()
+
+    const group = await Group.deploy([accountMember.address], [], accountOwner.address)
+    await group.deployTransaction.wait()
+
+    const actionsBytes = ethers.utils.defaultAbiCoder.encode(['(address,bytes)[]'], [[]])
+    const actionsHash = ethers.utils.keccak256(actionsBytes)
+    const rationaleHash = ethers.utils.id('Test rationale')
+
+    for (const [acl, notRevert, revert] of [
+      [nilAddress, [accountOwner, accountMember, accountOther], []],
+      [oneAddress, [accountMember], [accountOwner, accountOther]],
+      [accountOther.address, [accountOther], [accountOwner, accountMember]],
+    ]) {
+      const voting = await DeadlineVoting.deploy(accountOwner.address, acl, nilAddress, group.address, 10)
+      await voting.deployTransaction.wait()
+
+      for (const account of notRevert) {
+        await expect(voting.connect(account).propose(rationaleHash, actionsHash))
+          .to.not.be.reverted
+      }
+
+      for (const account of revert) {
+        await expect(voting.connect(account).propose(rationaleHash, actionsHash))
+          .to.be.reverted
+      }
+    }
   })
 
   it('Propose/Enact setDeadline', async function () {

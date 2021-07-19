@@ -20,7 +20,7 @@ contract Group is IVotingWeights, Owned, GroupCheckpointing {
         _pushCheckpoint(weights[member]).weight = weight;
     }
 
-    function weightOf(address member) public view returns (uint256) {
+    function weightOf(address member) public override view returns (uint256) {
         return _getLastCheckpoint(weights[member]).weight;
     }
 

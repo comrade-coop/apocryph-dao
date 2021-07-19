@@ -12,7 +12,7 @@ describe('Allocations', function () {
   }
 
   it('Basic deploy', async function () {
-    const IERC20 = await hre.artifacts.readArtifact('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20')
+    const IERC20 = await hre.artifacts.readArtifact('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20') // TODO: Use TestERC20
     const Allocations = await ethers.getContractFactory('Allocations')
     const [accountA, accountVoting] = await ethers.getSigners()
 

@@ -13,6 +13,7 @@ const log = {
 // Utilities
 
 const nilAddress = '0x' + '00'.repeat(20)
+const oneAddress = '0x' + '00'.repeat(19) + '01'
 
 const secondsPerBlock = 13
 const timeUnits = {
@@ -188,19 +189,20 @@ const deployFunctions = {
 
   Voting: async function ({
     weights,
-    owner = undefined,
-    proposer = undefined,
-    enacter = undefined,
+    owner = '(self)',
+    proposer = '(any)',
+    enacter = '(any)',
     deadline = '3 days'
   }, signer, resolve) {
     const DeadlineVoting = await ethers.getContractFactory('DeadlineVoting', signer)
 
-    const resolvedOwner = resolve(owner) || { address: nilAddress }
-    const resolvedProposer = resolve(proposer) || { address: nilAddress }
-    const resolvedEnacter = resolve(enacter) || { address: nilAddress }
-    const resolvedWeights = resolve(weights)
+    console.log(weights, owner, proposer, enacter)
+    const resolvedWeights = resolve(weights).address
+    const resolvedOwner = owner == '(self)' ? nilAddress : resolve(owner).address
+    const resolvedProposer = proposer == '(any)' ? nilAddress : proposer == '(members)' ? oneAddress : resolve(proposer).address
+    const resolvedEnacter = proposer == '(any)' ? nilAddress : proposer == '(members)' ? oneAddress : resolve(enacter).address
 
-    const votingContract = await DeadlineVoting.deploy(resolvedOwner.address, resolvedProposer.address, resolvedEnacter.address, resolvedWeights.address, convertTimeToBlocks(deadline))
+    const votingContract = await DeadlineVoting.deploy(resolvedOwner, resolvedProposer, resolvedEnacter, resolvedWeights, convertTimeToBlocks(deadline))
 
     return {
       address: votingContract.address,

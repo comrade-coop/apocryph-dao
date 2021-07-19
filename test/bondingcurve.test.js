@@ -219,6 +219,4 @@ describe('Bonding curve', function () {
     await bondingCurve.connect(accountBeneficiary).withdraw(nilAddress, initialSupply)
     expect(await tokenB.balanceOf(accountBeneficiary.address)).to.equal(initialSupply)
   })
-
-  // TODO: transition
 })
