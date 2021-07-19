@@ -21,24 +21,22 @@ contract GroupCheckpointing {
     }
 
     function _getCheckpoint(Checkpoint[] storage checkpoints, uint128 atTime) internal view returns (Checkpoint storage) {
+        // Via https://en.wikipedia.org/wiki/Binary_search_algorithm#Procedure_for_finding_the_rightmost_element
         if (checkpoints.length == 0 || atTime < checkpoints[0].fromTime) return _nilCheckpoint;
         if (atTime >= checkpoints[checkpoints.length - 1].fromTime) return checkpoints[checkpoints.length - 1];
 
         uint256 start = 0;
-        uint256 end = checkpoints.length - 1;
-        while (true) {
+        uint256 end = checkpoints.length;
+        while (start < end) {
             uint256 mid = (start + end) / 2; // floor
-            uint256 midTime = checkpoints[mid].fromTime;
-            if (midTime > atTime) {
-                end = mid - 1;
-            } else if (midTime < atTime) {
+            if (checkpoints[mid].fromTime > atTime) {
+                end = mid;
+            } else {
                 start = mid + 1;
-            } else { // midTime == atTime
-                return checkpoints[mid];
             }
         }
 
-        return _nilCheckpoint;
+        return checkpoints[end - 1];
     }
 
     function _pushCheckpoint(Checkpoint[] storage checkpoints) internal returns (Checkpoint storage checkpoint) {

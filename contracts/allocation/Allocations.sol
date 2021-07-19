@@ -3,8 +3,9 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "../voting/Owned.sol";
 
-contract Allocations {
+contract Allocations is Owned {
     using SafeERC20 for IERC20;
 
     event AllocationChanged(address recepient, uint256 amount);
@@ -12,11 +13,12 @@ contract Allocations {
     event ClaimRevoked(address recepient, uint256 amount);
     event ClaimEnacted(address recepient, uint256 amount);
 
-    struct AllocationData { // Can potentially optimize storage by storing amounts as uint128 and time as uint64; 3 storage slots total instead of 5
-        uint256 amount;
-        uint256 lockTime;
-        uint256 claimAmount;
-        uint256 claimStartTime;
+    struct AllocationData {
+        // Packed
+        uint160 amount;
+        uint96 lockTime;
+        uint160 claimAmount;
+        uint96 claimStartTime;
         mapping(address => bool) supervisors;
     }
 
@@ -24,44 +26,24 @@ contract Allocations {
     mapping(address => bool) internal globalSupervisors;
     uint256 internal defaultLockTime;
 
-    address internal _voting; // TODO: Should used `voting/Owned` instead?
     IERC20 internal _token;
 
-    constructor(IERC20 token_, address voting_, uint256 defaultLockTime_, address[] memory globalSupervisors_) {
+    constructor(address owner_, IERC20 token_, uint256 defaultLockTime_, address[] memory globalSupervisors_) Owned(owner_) {
         _token = token_;
-        _voting = voting_;
         defaultLockTime = defaultLockTime_;
         for (uint256 i = 0; i < globalSupervisors_.length; i++) {
             globalSupervisors[globalSupervisors_[i]] = true;
         }
     }
 
-    // Allocation
-
-    function allocation(address recepient) external view returns (uint256) {
-        return allocationDatas[recepient].amount;
+    modifier onlyOwnerOrRecepient(address recepient) {
+        require(msg.sender == owner || msg.sender == recepient);
+        _;
     }
 
-    function increaseAllocation(address recepient, uint256 amount) external {
-        require(msg.sender == _voting);
-
-        AllocationData storage allocationData = allocationDatas[recepient];
-        allocationData.amount = allocationData.amount + amount;
-
-        emit AllocationChanged(recepient, allocationData.amount);
-    }
-
-    function revokeAllocation(address recepient, uint256 amount) external {
-        AllocationData storage allocationData = allocationDatas[recepient];
-        require(msg.sender == _voting || msg.sender == recepient || allocationData.supervisors[msg.sender]);
-
-        allocationData.amount = allocationData.amount - amount;
-
-        if (allocationData.claimAmount > allocationData.amount) {
-            allocationData.claimAmount = allocationData.amount;
-        }
-
-        emit AllocationChanged(recepient, allocationData.amount);
+    modifier onlyOwnerOrSupervisorOrRecepient(address recepient) {
+        require(msg.sender == owner || msg.sender == recepient || globalSupervisors[msg.sender] || allocationDatas[recepient].supervisors[msg.sender]);
+        _;
     }
 
     // Supervisor
@@ -72,15 +54,38 @@ contract Allocations {
     }
 
     /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient != 0x0 ? recepient : 'all allocationDatas (past and future)'`.
-    function setSupervisor(address recepient, address supervisor, bool toggle) external {
-        require(msg.sender == _voting);
-
+    function setSupervisor(address recepient, address supervisor, bool toggle) onlyOwner external {
         if (recepient != address(0)) {
             AllocationData storage allocationData = allocationDatas[recepient];
             allocationData.supervisors[supervisor] = toggle;
         } else {
             globalSupervisors[supervisor] = toggle;
         }
+    }
+
+    // Allocation
+
+    function allocation(address recepient) external view returns (uint256) {
+        return allocationDatas[recepient].amount;
+    }
+
+    function increaseAllocation(address recepient, uint256 amount) onlyOwner external {
+        AllocationData storage allocationData = allocationDatas[recepient];
+        allocationData.amount = allocationData.amount + uint160(amount);
+
+        emit AllocationChanged(recepient, allocationData.amount);
+    }
+
+    function revokeAllocation(address recepient, uint256 amount) onlyOwnerOrSupervisorOrRecepient(recepient) external {
+        AllocationData storage allocationData = allocationDatas[recepient];
+
+        allocationData.amount = allocationData.amount - uint160(amount);
+
+        if (allocationData.claimAmount > allocationData.amount) {
+            allocationData.claimAmount = allocationData.amount;
+        }
+
+        emit AllocationChanged(recepient, allocationData.amount);
     }
 
     // Lock time
@@ -99,14 +104,12 @@ contract Allocations {
     }
 
     /// @notice Set timelock for `recepient != 0x0 ? recepient : 'all allocationDatas (default value)'` to `timelock == 0 ? 'the default value' : timelock == (-1 : uint256) ? 'instant' : timelock + ' blocks'`.
-    function setLockTime(address recepient, uint256 lockTime_) external {
-        require(msg.sender == _voting);
-
+    function setLockTime(address recepient, uint256 lockTime_) onlyOwner external {
         if (recepient != address(0)) {
             defaultLockTime = lockTime_;
         } else {
             AllocationData storage allocationData = allocationDatas[recepient];
-            allocationData.lockTime = lockTime_;
+            allocationData.lockTime = uint96(lockTime_);
         }
     }
 
@@ -116,8 +119,8 @@ contract Allocations {
         return allocationData.claimStartTime + x;
     }
 
-    function _now() private view returns (uint256) {
-        return block.number;
+    function _now() private view returns (uint96) {
+        return uint96(block.number);
     }
 
     // Claim
@@ -131,7 +134,8 @@ contract Allocations {
         AllocationData storage allocationData = allocationDatas[recepient];
         require(amount != 0 && allocationData.amount > 0);
 
-        allocationData.claimAmount = allocationData.claimAmount + amount;
+        allocationData.claimAmount = allocationData.claimAmount + uint160(amount);
+
         if (allocationData.claimAmount > allocationData.amount) {
             allocationData.claimAmount = allocationData.amount;
         }
@@ -140,9 +144,8 @@ contract Allocations {
         emit ClaimProposed(recepient, allocationData.claimAmount);
     }
 
-    function revokeClaim(address recepient) external {
+    function revokeClaim(address recepient) onlyOwnerOrSupervisorOrRecepient(recepient) external {
         AllocationData storage allocationData = allocationDatas[recepient];
-        require(msg.sender == _voting || msg.sender == recepient || allocationData.supervisors[msg.sender] || globalSupervisors[msg.sender]);
         // require(_now() < _getUnlockTime(allocationData));
 
         uint256 claimAmount = allocationData.claimAmount;
@@ -152,8 +155,7 @@ contract Allocations {
         emit ClaimRevoked(recepient, claimAmount);
     }
 
-    function unlockClaim(address recepient) external {
-        require(msg.sender == _voting);
+    function unlockClaim(address recepient) onlyOwner external {
         AllocationData storage allocationData = allocationDatas[recepient];
 
         allocationData.claimStartTime = 0;
@@ -168,24 +170,19 @@ contract Allocations {
         require(_now() >= _getUnlockTime(allocationData));
 
         uint256 amount = allocationData.claimAmount;
-        if (amount > allocationData.amount) {
-            amount = allocationData.amount;
-        }
-        allocationData.amount = allocationData.amount - amount;
+        allocationData.amount = allocationData.amount - uint160(amount);
         allocationData.claimAmount = 0;
         allocationData.claimStartTime = 0;
 
         _token.safeTransfer(recepient, amount);
-        // _token.safeTransferFrom(_voting, recepient, amount);
+        // _token.safeTransferFrom(owner, recepient, amount);
 
         emit ClaimEnacted(recepient, amount);
     }
 
     // withdraw
 
-    function withdraw(address recepient, uint256 amount) external {
-        require(msg.sender == _voting);
-
+    function withdraw(address recepient, uint256 amount) onlyOwner external {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }

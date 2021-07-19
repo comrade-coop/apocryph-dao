@@ -119,26 +119,36 @@ abstract contract TokenAgeCheckpointing {
 
         (Checkpoint storage newCheckpoint, Checkpoint storage oldCheckpoint) = _pushCheckpoint(checkpoints);
 
+        uint64 newUnder;
+        uint192 newTokenAgeUnder;
+        uint64 newTokenAgeStartTime;
+
         if (newBalance > oldCheckpoint.balance) { // balance > oldBalance: we are pushing to the stack
             uint64 currentTime = _currentTime();
 
-            newCheckpoint.tokenAgeStartTime = currentTime;
-            newCheckpoint.balance = newBalance;
-            newCheckpoint.under = uint64(checkpoints.length - 1);
-            newCheckpoint.tokenAgeUnder = _getTokenAge(oldCheckpoint, currentTime);
+            newTokenAgeStartTime = currentTime;
+            newUnder = uint64(checkpoints.length - 1);
+            newTokenAgeUnder = _getTokenAge(oldCheckpoint, currentTime);
         } else { // balance <= oldBalance: we are modifying the stack top and/or popping
             Checkpoint storage tokenSourceCheckpoint = oldCheckpoint;
-            uint64 newPrevious = tokenSourceCheckpoint.under;
+            newUnder = tokenSourceCheckpoint.under;
 
-            while (newPrevious > 0 && newBalance < checkpoints[newPrevious - 1].balance) {
-                tokenSourceCheckpoint = checkpoints[newPrevious - 1];
-                newPrevious = tokenSourceCheckpoint.under;
+            while (newUnder > 0) {
+                Checkpoint storage newUnderCheckpoint = checkpoints[newUnder - 1];
+                if (newBalance > newUnderCheckpoint.balance) {
+                    break;
+                }
+                tokenSourceCheckpoint = newUnderCheckpoint;
+                newUnder = tokenSourceCheckpoint.under;
             }
 
-            newCheckpoint.tokenAgeStartTime = tokenSourceCheckpoint.tokenAgeStartTime;
-            newCheckpoint.balance = newBalance;
-            newCheckpoint.under = newPrevious;
-            newCheckpoint.tokenAgeUnder = tokenSourceCheckpoint.tokenAgeUnder;
+            newTokenAgeStartTime = tokenSourceCheckpoint.tokenAgeStartTime;
+            newTokenAgeUnder = tokenSourceCheckpoint.tokenAgeUnder;
         }
+
+        newCheckpoint.tokenAgeStartTime = newTokenAgeStartTime;
+        newCheckpoint.balance = newBalance;
+        newCheckpoint.under = newUnder;
+        newCheckpoint.tokenAgeUnder = newTokenAgeUnder;
     }
 }

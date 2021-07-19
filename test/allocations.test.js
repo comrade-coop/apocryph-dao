@@ -17,7 +17,7 @@ describe('Allocations', function () {
     const [accountA, accountVoting] = await ethers.getSigners()
 
     const token = await waffle.deployMockContract(accountA, IERC20.abi)
-    const allocations = await Allocations.deploy(token.address, accountVoting.address, 10, [])
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [])
     await allocations.deployTransaction.wait()
   })
 
@@ -29,7 +29,7 @@ describe('Allocations', function () {
     const allocationAmount = 100
 
     const token = await waffle.deployMockContract(accountA, IERC20.abi)
-    const allocations = await Allocations.deploy(token.address, accountVoting.address, 10, [])
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [])
     await allocations.deployTransaction.wait()
 
     await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationAmount))
@@ -62,7 +62,7 @@ describe('Allocations', function () {
     const allocationDecreaseAmount = 10
 
     const token = await waffle.deployMockContract(accountA, IERC20.abi)
-    const allocations = await Allocations.deploy(token.address, accountVoting.address, 10, [])
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [])
     await allocations.deployTransaction.wait()
 
     await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationAmount))
@@ -84,7 +84,7 @@ describe('Allocations', function () {
     const claimAmount = 10
 
     const token = await waffle.deployMockContract(accountA, IERC20.abi)
-    const allocations = await Allocations.deploy(token.address, accountVoting.address, 10, [])
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [])
     await allocations.deployTransaction.wait()
 
     await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationAmount))
@@ -123,7 +123,7 @@ describe('Allocations', function () {
     const claimAmount = 10
 
     const token = await waffle.deployMockContract(accountA, IERC20.abi)
-    const allocations = await Allocations.deploy(token.address, accountVoting.address, 10, [accountGlobalSupervisor.address])
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [accountGlobalSupervisor.address])
     await allocations.deployTransaction.wait()
 
     await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationAmount))

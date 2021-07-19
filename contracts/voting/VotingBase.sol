@@ -23,7 +23,7 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
         _nextVoteId = 1;
     }
 
-    modifier onlyACL(address wanted) {
+    modifier onlyACL(address wanted) virtual {
         require(wanted == address(0) || wanted == msg.sender);
         _;
     }
@@ -49,6 +49,9 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
     function enact(uint256 voteId, VoteAction[] calldata actions_) public onlyACL(enacter) virtual override {
         require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
 
+        delete actionsRoot[voteId]; // ! important, as otherwise would allow multiple enactions
+        // delete rationale[voteId];
+
         for (uint i = 0; i < actions_.length; i++) {
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, bytes memory returnValue) = actions_[i].target.call(actions_[i].data); // {value: actions_[i].value}
@@ -57,8 +60,5 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
         }
 
         emit Enaction(voteId);
-
-        delete actionsRoot[voteId]; // ! important, as otherwise would allow multiple enactions
-        // delete rationale[voteId];
     }
 }

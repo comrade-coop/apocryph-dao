@@ -9,6 +9,7 @@ Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
 
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
+require('hardhat-gas-reporter')
 
 task('accounts', 'Prints the list of accounts', async () => {
   const accounts = await ethers.getSigners()

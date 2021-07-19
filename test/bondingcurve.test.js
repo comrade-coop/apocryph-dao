@@ -31,12 +31,7 @@ describe('Bonding curve', function () {
       tokenASupply * 0.01, 30)
     await bondingCurve.deployTransaction.wait()
 
-    expect(await bondingCurve.active()).to.equal(false)
-
-    await tokenA.connect(accountA).approve(bondingCurve.address, tokenASupply)
-    await bondingCurve.initialize()
-
-    expect(await bondingCurve.active()).to.equal(true)
+    await tokenA.connect(accountA).transfer(bondingCurve.address, tokenASupply)
   })
 
   it('Price is linear', async function () {
@@ -59,8 +54,7 @@ describe('Bonding curve', function () {
           0, 1, // tax=0/1
           0, 30)
         await bondingCurve.deployTransaction.wait()
-        await tokenA.connect(accountA).approve(bondingCurve.address, tokenASupply)
-        await bondingCurve.initialize()
+        await tokenA.connect(accountA).transfer(bondingCurve.address, tokenASupply)
 
         let lastValue
         for (let i = 0; i <= tokenASupply; i++) {
@@ -95,8 +89,7 @@ describe('Bonding curve', function () {
       0, 1, // tax=0/1
       0, 30)
     await bondingCurve.deployTransaction.wait()
-    await tokenA.connect(accountA).approve(bondingCurve.address, tokenASupply)
-    await bondingCurve.connect(accountA).initialize()
+    await tokenA.connect(accountA).transfer(bondingCurve.address, tokenASupply)
 
     let balanceB = initialBalanceB
 
@@ -125,7 +118,7 @@ describe('Bonding curve', function () {
     expect(await tokenB.balanceOf(accountB.address)).to.equal(balanceB)
   })
 
-  it('Tax', async function () {
+  it('Tax/withdraw', async function () {
     const TestERC20 = await ethers.getContractFactory('TestERC20')
     const BondingCurve = await ethers.getContractFactory('BondingCurve')
     const [accountA, accountB, accountBeneficiary] = await ethers.getSigners()
@@ -143,33 +136,34 @@ describe('Bonding curve', function () {
       1, 100, // tax = 1%
       0, 30)
     await bondingCurve.deployTransaction.wait()
-    await tokenA.connect(accountA).approve(bondingCurve.address, tokenASupply)
-    await bondingCurve.connect(accountA).initialize()
+    await tokenA.connect(accountA).transfer(bondingCurve.address, tokenASupply)
 
-    let balanceB = initialBalanceB
+    const balanceBPre = await tokenB.balanceOf(accountB.address)
 
-    await tokenB.connect(accountB).approve(bondingCurve.address, balanceB)
+    await tokenB.connect(accountB).approve(bondingCurve.address, initialBalanceB)
+    await bondingCurve.connect(accountB).buy(100, initialBalanceB, nilAddress)
 
-    await bondingCurve.connect(accountB).buy(100, balanceB, nilAddress)
+    const balanceBPost = await tokenB.balanceOf(accountB.address)
 
-    balanceB = (await tokenB.balanceOf(accountB.address)) * 1
+    const preTaxAmountB = balanceBPre.sub(balanceBPost)
 
-    const preTaxAmountB = initialBalanceB - balanceB
+    const tax = await bondingCurve.withdrawableAmount()
 
-    const tax = await tokenB.balanceOf(accountBeneficiary.address)
+    expect(tax).to.equal(preTaxAmountB.div(100))
+    expect(await tokenB.balanceOf(bondingCurve.address)).to.equal(preTaxAmountB)
 
-    expect(tax).to.equal(Math.floor(preTaxAmountB * 0.01))
-    expect(await tokenB.balanceOf(bondingCurve.address)).to.equal(preTaxAmountB - tax)
+    await bondingCurve.connect(accountBeneficiary).withdraw(nilAddress, tax)
+    expect(await tokenB.balanceOf(accountBeneficiary.address)).to.equal(tax)
 
     await tokenA.connect(accountB).approve(bondingCurve.address, 100)
     await bondingCurve.connect(accountB).sell(100, 0, nilAddress)
 
     expect(await tokenB.balanceOf(bondingCurve.address)).to.equal(0)
-    expect(await tokenB.balanceOf(accountB.address)).to.equal(balanceB + preTaxAmountB - tax)
+    expect(await tokenB.balanceOf(accountB.address)).to.equal(balanceBPre.sub(tax))
     expect(await tokenB.balanceOf(accountBeneficiary.address)).to.equal(tax)
   })
 
-  it('Transition', async function () {
+  it('Transition/withdraw', async function () {
     const TestERC20 = await ethers.getContractFactory('TestERC20')
     const BondingCurve = await ethers.getContractFactory('BondingCurve')
     const [accountA, accountB, accountBeneficiary] = await ethers.getSigners()
@@ -189,8 +183,7 @@ describe('Bonding curve', function () {
       0, 1, // tax = 0
       transitionAmount, transitionBlocks)
     await bondingCurve.deployTransaction.wait()
-    await tokenA.connect(accountA).approve(bondingCurve.address, initialSupply)
-    await bondingCurve.connect(accountA).initialize()
+    await tokenA.connect(accountA).transfer(bondingCurve.address, initialSupply)
 
     await tokenB.connect(accountB).approve(bondingCurve.address, initialSupply + 1)
     await tokenA.connect(accountB).approve(bondingCurve.address, 1)
@@ -221,8 +214,9 @@ describe('Bonding curve', function () {
     await advanceTime(startBlock + transitionBlocks + 1)
 
     await expect(bondingCurve.enactTransition())
-      .to.emit(bondingCurve, 'Transition').withArgs(initialSupply)
+      .to.emit(bondingCurve, 'TransitionEnd')
 
+    await bondingCurve.connect(accountBeneficiary).withdraw(nilAddress, initialSupply)
     expect(await tokenB.balanceOf(accountBeneficiary.address)).to.equal(initialSupply)
   })
 

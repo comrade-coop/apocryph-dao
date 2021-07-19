@@ -67,7 +67,7 @@
     "type": "Allocations",
     "name": "Apocryph DAO",
     "token": "apocryphToken",
-    "voting": "apocryph"
+    "owner": "apocryph"
   },
 
   "bondingCurve": {

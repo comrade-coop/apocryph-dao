@@ -130,7 +130,7 @@ const deployFunctions = {
       if (totalSupply > totalAmount) {
         log.warning(`Fixed supply of ${totalSupply} ${tokenSymbol} is ${totalSupply - totalAmount} ${tokenSymbol} more than total assignment of ${totalSupply} ${tokenSymbol}; reassigning the rest to signer`)
       } else {
-        throw new Error(`Total assignment of ${totalAmount} ${tokenSymbol} is ${totalAmount - totalSupply} ${tokenSymbol} LESS than fixed supply of ${totalSupply} ${tokenSymbol}`)
+        throw new Error(`Total assignment of ${totalAmount} ${tokenSymbol} is ${totalAmount - totalSupply} ${tokenSymbol} less than fixed supply of ${totalSupply} ${tokenSymbol}`)
       }
     }
 
@@ -259,23 +259,20 @@ const deployFunctions = {
 
     return {
       address: bondingCurveContract.address,
-      deployed: bondingCurveContract.deployTransaction.wait(),
-      async postDeploy () {
-        await bondingCurveContract.initialize()
-      }
+      deployed: bondingCurveContract.deployTransaction.wait()
     }
   },
 
   Allocations: async function ({
     token,
-    voting,
+    owner,
     claimLockTime = '3 days',
     globalSupervisors = []
   }, signer, resolve) {
     const Allocations = await ethers.getContractFactory('Allocations', signer)
 
     const allocationsContract = await Allocations.deploy(
-      resolve(token).address, resolve(voting).address, convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
+      resolve(owner).address, resolve(token).address, convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
     )
 
     return {

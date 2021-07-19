@@ -13,8 +13,8 @@ contract Vesting is ERC721, IERC1363Receiver {
     event VestingClaimed(address recepient, uint256 amount);
 
     struct VestingData {
-        uint256 totalValue;
-        uint256 released;
+        uint128 totalValue;
+        uint128 released;
 
         // waiting until blockcount == startBlock then periodCount x periodBlocks
         uint128 startBlock;
@@ -58,8 +58,13 @@ contract Vesting is ERC721, IERC1363Receiver {
         uint256 tokenId = _nextTokenId;
         _nextTokenId = _nextTokenId + 1;
 
+        if (periodBlocks == 0) {
+            periodBlocks = 1;
+            periodCount = 0;
+        }
+
         VestingData storage vestingData = _tokenData[tokenId];
-        vestingData.totalValue = value;
+        vestingData.totalValue = uint128(value);
         vestingData.startBlock = startBlock;
         vestingData.periodCount = periodCount;
         vestingData.periodBlocks = periodBlocks;
@@ -84,12 +89,10 @@ contract Vesting is ERC721, IERC1363Receiver {
     function _claim(uint256 tokenId, address receiver, bool call) internal {
         VestingData storage vestingData = _tokenData[tokenId];
 
-        uint256 vestingValue = calculateVestingValue(block.number, vestingData.totalValue, vestingData.startBlock, vestingData.periodCount, vestingData.periodBlocks);
+        uint128 vestingValue = uint128(calculateVestingValue(block.number, vestingData.totalValue, vestingData.startBlock, vestingData.periodCount, vestingData.periodBlocks));
         uint256 toRelease = vestingValue - vestingData.released;
 
         if (toRelease > 0) {
-            emit VestingClaimed(receiver, toRelease);
-
             vestingData.released = vestingValue;
 
             if (vestingValue == vestingData.totalValue) {
@@ -102,6 +105,8 @@ contract Vesting is ERC721, IERC1363Receiver {
             } else {
                 require(_baseToken.transfer(receiver, toRelease));
             }
+
+            emit VestingClaimed(receiver, toRelease);
         }
     }
 
@@ -120,7 +125,7 @@ contract Vesting is ERC721, IERC1363Receiver {
             return 0;
         }
 
-        uint256 currentPeriod = periodBlocks == 0 ? periodCount : (currentBlock - startBlock) / periodBlocks;
+        uint256 currentPeriod = (currentBlock - startBlock) / periodBlocks;
 
         if (currentPeriod >= periodCount) {
             return totalValue;

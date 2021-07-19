@@ -5,19 +5,19 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IERC1363Spender.sol";
+import "../voting/Owned.sol";
 
-contract BondingCurve is IERC1363Spender {
+contract BondingCurve is IERC1363Spender, Owned {
     using SafeERC20 for IERC20;
 
     event Buy(address indexed recepient, uint256 amountA, uint256 amountB);
     event Sell(address indexed recepient, uint256 amountA, uint256 amountB);
     event TransitionStart();
     event TransitionCancel();
-    event Transition(uint256 finalBalanceB);
+    event TransitionEnd();
 
     IERC20 public immutable tokenA;
     IERC20 public immutable tokenB;
-    address public immutable beneficiary;
 
     // The curve starts with `totalBalanceA` A tokens available at the price of `initialPrice/priceDivisor` A tokens per B token and ends with with 0 A tokens available at the price of `finalPrice/priceDivisor` A tokens per B token.
     uint256 public immutable totalBalanceA;
@@ -25,7 +25,7 @@ contract BondingCurve is IERC1363Spender {
     uint256 public immutable finalPrice; // Price when tokenA.balanceOf(this) == 1
     uint256 public immutable priceDivisor;
 
-    // Every `tax/taxDivisor` of B tokens are immediatelly available to the beneficiary and aren't refundable
+    // Every `tax/taxDivisor` of B tokens are immediatelly available to the beneficiary and can't be refunded
     uint256 public immutable tax;
     uint256 public immutable taxDivisor;
 
@@ -33,21 +33,22 @@ contract BondingCurve is IERC1363Spender {
     uint256 public immutable transitionDurationBlocks; // ... and ends when transitionDurationBlocks have passed
 
     // Packed
-    uint240 internal _transitionEndBlock;
-    bool public active;
+    uint96 public transitionEndBlock;
+    uint128 public balanceA;
+    uint128 public withdrawableAmount;
 
     constructor (
-        IERC20 tokenA_, IERC20 tokenB_, address beneficiary_,
+        IERC20 tokenA_, IERC20 tokenB_, address owner_,
         uint256 totalBalanceA_,
         uint256 initialPrice_, uint256 finalPrice_, uint256 priceDivisor_,
         uint256 tax_, uint256 taxDivisor_,
         uint256 transitionBalanceA_, uint256 transitionDurationBlocks_
-    ) {
+    ) Owned(owner_) {
         tokenA = tokenA_;
         tokenB = tokenB_;
-        beneficiary = beneficiary_;
 
         totalBalanceA = totalBalanceA_;
+        balanceA = uint128(totalBalanceA_);
         initialPrice = initialPrice_;
         finalPrice = finalPrice_;
         priceDivisor = priceDivisor_;
@@ -60,17 +61,34 @@ contract BondingCurve is IERC1363Spender {
 
     }
 
-    function initialize() external {
-        _initialize(msg.sender);
+    // Transition
+
+    modifier whenActive() {
+        require(transitionEndBlock != type(uint96).max);
+        _;
     }
 
-    function _initialize(address sender) internal {
-        require(!active, "Active");
-        uint256 balanceA = tokenA.balanceOf(address(this));
-        if (balanceA < totalBalanceA) {
-            tokenA.safeTransferFrom(sender, address(this), totalBalanceA - balanceA);
+    function enactTransition() whenActive public {
+        require(balanceA == 0 && block.number >= transitionEndBlock);
+
+        transitionEndBlock = type(uint96).max;
+        withdrawableAmount = uint128(tokenB.balanceOf(address(this)));
+
+        emit TransitionEnd();
+    }
+
+    function _updateTransition(uint256 newBalanceA) private {
+        if (newBalanceA > transitionBalanceA) {
+            if (transitionEndBlock != 0) {
+                transitionEndBlock = 0;
+                emit TransitionCancel();
+            }
+        } else {
+            if (transitionEndBlock == 0) {
+                transitionEndBlock = uint96(block.number + transitionDurationBlocks);
+                emit TransitionStart();
+            }
         }
-        active = true;
     }
 
     // Buy/sell
@@ -79,30 +97,27 @@ contract BondingCurve is IERC1363Spender {
         _buy(msg.sender, amountA, minAmountB, recepient);
     }
 
-    function _buy(address _sender, uint256 amountA, uint256 maxAmountB, address recepient) public {
-        require(active, "Inactive");
+    function _buy(address _sender, uint256 amountA, uint256 maxAmountB, address recepient) whenActive private {
 
         if (recepient == address(0)) {
             recepient = _sender;
         }
 
-        uint256 startBalanceA = tokenA.balanceOf(address(this));
-
-        if (amountA > startBalanceA) {
-            amountA = startBalanceA;
+        if (amountA > balanceA) {
+            amountA = balanceA;
         }
-        uint256 endBalanceA = startBalanceA - amountA;
+        uint128 endBalanceA = balanceA - uint128(amountA);
 
-        uint256 preTaxAmountB = calculateDueBalanceB(startBalanceA) - calculateDueBalanceB(endBalanceA);
-        uint256 taxAmountB = preTaxAmountB * tax / taxDivisor;
-        uint256 amountB = preTaxAmountB - taxAmountB;
-
-        _updateTransition(endBalanceA);
-
+        uint256 preTaxAmountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(endBalanceA);
         require(preTaxAmountB <= maxAmountB, "Price slippage");
 
-        tokenB.safeTransferFrom(_sender, address(this), amountB);
-        tokenB.safeTransferFrom(_sender, beneficiary, taxAmountB); // Q: should we use withdraw for taxes instead?
+        uint256 taxAmountB = preTaxAmountB * tax / taxDivisor;
+        withdrawableAmount = withdrawableAmount + uint128(taxAmountB);
+
+        balanceA = endBalanceA;
+        _updateTransition(endBalanceA);
+
+        tokenB.safeTransferFrom(_sender, address(this), preTaxAmountB);
         tokenA.safeTransfer(recepient, amountA);
 
         emit Buy(recepient, amountA, preTaxAmountB);
@@ -112,24 +127,22 @@ contract BondingCurve is IERC1363Spender {
         _sell(msg.sender, amountA, minAmountB, recepient);
     }
 
-    function _sell(address _sender, uint256 amountA, uint256 minAmountB, address recepient) public {
-        require(active, "Inactive");
-
+    function _sell(address _sender, uint256 amountA, uint256 minAmountB, address recepient) whenActive private {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }
 
-        uint256 startBalanceA = tokenA.balanceOf(address(this));
-        if (startBalanceA + amountA > totalBalanceA) {
-            amountA = totalBalanceA - startBalanceA; // Tokens beyound the initial supply sell for 0; assume the user doesn't want that
+        if (balanceA + amountA > totalBalanceA) {
+            amountA = totalBalanceA - balanceA; // Tokens beyound the initial supply sell for 0; assume the user doesn't want that
         }
-        uint256 endBalanceA = startBalanceA + amountA;
+        uint128 endBalanceA = balanceA + uint128(amountA);
 
-        uint256 preTaxAmountB = calculateDueBalanceB(endBalanceA) - calculateDueBalanceB(startBalanceA);
+        uint256 preTaxAmountB = calculateDueBalanceB(endBalanceA) - calculateDueBalanceB(balanceA);
         uint256 taxAmountB = preTaxAmountB * tax / taxDivisor;
-        uint256 amountB = preTaxAmountB - taxAmountB;
+        uint256 amountB = preTaxAmountB - uint128(taxAmountB);
         require(amountB >= minAmountB, "Price slippage");
 
+        balanceA = endBalanceA;
         _updateTransition(endBalanceA);
 
         tokenA.safeTransferFrom(_sender, address(this), amountA);
@@ -145,12 +158,8 @@ contract BondingCurve is IERC1363Spender {
             (uint256 amountA, address receiver) = abi.decode(data, (uint256, address));
             _buy(owner, amountA, value, receiver);
         } else if (msg.sender == address(tokenA)) {
-            if (!active) {
-                _initialize(owner);
-            } else {
-                (uint256 minAmountB, address receiver) = abi.decode(data, (uint256, address));
-                _sell(owner, value, minAmountB, receiver);
-            }
+            (uint256 minAmountB, address receiver) = abi.decode(data, (uint256, address));
+            _sell(owner, value, minAmountB, receiver);
         } else {
             revert();
         }
@@ -159,7 +168,7 @@ contract BondingCurve is IERC1363Spender {
 
     // Curve
 
-    function calculateDueBalanceB(uint256 balanceA) public view returns (uint256 dueBalanceB) {
+    function calculateDueBalanceB(uint256 atBalanceA) public view returns (uint256 dueBalanceB) {
         // First, we get the price of a single token:
         //   price = initialPrice + (totalBalanceA - (balanceA - 1)) * (finalPrice - initialPrice) / totalBalanceA
         //   price = initialPrice + (1 - (balanceA - 1) / totalBalanceA) * (finalPrice - initialPrice)
@@ -172,47 +181,25 @@ contract BondingCurve is IERC1363Spender {
         //   amountB_due = balanceA * (2 * finalPrice - (balanceA - 1) * (finalPrice - initialPrice) / totalBalanceA) / 2
         //   amountB_due = balanceA * finalPrice - balanceA * (balanceA - 1) * (finalPrice - initialPrice) / totalBalanceA / 2
 
-        if (balanceA > totalBalanceA) {
-            balanceA = totalBalanceA; // That way we can't go into negative prices if someone transfers us A tokens without using sell()
-        }
-
-        if (balanceA == 0) {
-            dueBalanceB = 0; // Otherwise (balanceA - 1) reverts, despite it being multipled by a 0
+        if (atBalanceA == 0) {
+            dueBalanceB = 0; // Otherwise (atBalanceA - 1) reverts, despite it being multipled by a 0
         } else {
-            dueBalanceB = (balanceA * finalPrice - balanceA * (balanceA - 1) * (finalPrice - initialPrice) / totalBalanceA / 2) / priceDivisor;
+            dueBalanceB = (atBalanceA * finalPrice - atBalanceA * (atBalanceA - 1) * (finalPrice - initialPrice) / totalBalanceA / 2) / priceDivisor;
         }
     }
 
-    // Transition
+    // Withdraw
 
-    function _updateTransition(uint256 balanceA) private {
-        require(active, "Inactive");
-
-        if (balanceA > transitionBalanceA) {
-            if (_transitionEndBlock != 0) {
-                _transitionEndBlock = 0;
-                emit TransitionCancel();
-            }
-        } else {
-            if (_transitionEndBlock == 0) {
-                _transitionEndBlock = uint240(block.number + transitionDurationBlocks);
-                emit TransitionStart();
-            }
+    function withdraw(address recepient, uint256 amount) onlyOwner external {
+        if (recepient == address(0)) {
+            recepient = msg.sender;
         }
-    }
 
-    function enactTransition() public {
-        require(active, "Inactive");
+        if (amount > withdrawableAmount) {
+            amount = withdrawableAmount;
+        }
+        withdrawableAmount = withdrawableAmount - uint128(amount);
 
-        uint256 balanceA = tokenA.balanceOf(address(this));
-
-        require(balanceA == 0 && block.number >= _transitionEndBlock);
-
-        active = false;
-
-        uint256 balanceB = tokenB.balanceOf(address(this));
-        tokenB.safeTransfer(beneficiary, balanceB);
-
-        emit Transition(balanceB);
+        tokenB.safeTransfer(recepient, amount);
     }
 }

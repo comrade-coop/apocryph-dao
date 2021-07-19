@@ -49,7 +49,31 @@ describe('Vesting', function () {
       .to.emit(vesting, 'Transfer').withArgs(nilAddress, accountB.address, 0) // 0 is the token ID
 
     await expect(token.call(vesting, 'onTransferReceived', accountA.address, accountA.address, vestingAmount, vestingDataNoAddress))
-      .to.emit(vesting, 'Transfer').withArgs(nilAddress, accountA.address, 1) // 0 is the token ID
+      .to.emit(vesting, 'Transfer').withArgs(nilAddress, accountA.address, 1)
+  })
+
+  it('Create ERC20 vesting', async function () {
+    const TestERC20 = await ethers.getContractFactory('TestERC20')
+    const Vesting = await ethers.getContractFactory('Vesting')
+    const [accountA, accountB] = await ethers.getSigners()
+
+    const vestingAmount = 100
+    const startBlock = (await ethers.provider.getBlock()).number
+
+    const token = await TestERC20.deploy('Test', [accountA.address], [vestingAmount * 2])
+    await token.deployTransaction.wait()
+    const vesting = await Vesting.deploy(token.address, 'Vested TEST', 'VTEST')
+    await vesting.deployTransaction.wait()
+
+    await token.connect(accountA).approve(vesting.address, vestingAmount * 2)
+
+    await expect(vesting.connect(accountA).mint(accountB.address, vestingAmount, startBlock + 100, 5, 10))
+      .to.emit(vesting, 'Transfer').withArgs(nilAddress, accountB.address, 0)
+      .to.emit(token, 'Transfer').withArgs(accountA.address, vesting.address, vestingAmount)
+
+    await expect(vesting.connect(accountA).mint(nilAddress, vestingAmount, startBlock + 100, 5, 10))
+      .to.emit(vesting, 'Transfer').withArgs(nilAddress, accountA.address, 1)
+      .to.emit(token, 'Transfer').withArgs(accountA.address, vesting.address, vestingAmount)
   })
 
   it('Claim vesting', async function () {
