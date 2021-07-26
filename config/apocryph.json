@@ -1,82 +1,80 @@
 {
-  "comrade": {
-    "type": "Fixed",
-    "name": "Comrade",
-    "expected": "EOA"
-  },
-  "coreTeam_TK": {
-    "type": "Fixed",
-    "name": "@todorkolev",
-    "expected": "EOA"
-  },
-  "coreTeam_BA": {
-    "type": "Fixed",
-    "name": "@branimirangelov",
-    "expected": "EOA"
-  },
-  "coreTeam_BM": {
-    "type": "Fixed",
-    "name": "@bojidar-bg",
-    "expected": "EOA"
-  },
-  "bondingCurveToken": {
-    "type": "FixedERC20",
-    "name": "Bonding Curve Buy Token",
-    "initialBalance": 1000000000
-  },
+  "contracts": {
+    "comrade": {
+      "type": "Fixed",
+      "name": "Comrade"
+    },
+    "coreTeam_TK": {
+      "type": "Fixed",
+      "name": "@todorkolev"
+    },
+    "coreTeam_BA": {
+      "type": "Fixed",
+      "name": "@branimirangelov"
+    },
+    "coreTeam_BM": {
+      "type": "Fixed",
+      "name": "@bojidar-bg"
+    },
+    "bondingCurveToken": {
+      "type": "FixedERC20",
+      "name": "Bonding Curve Buy Token",
+      "initialBalance": 1000000000
+    },
 
-  "coreTeamGroup": {
-    "type": "Group",
-    "name": "Core Team",
-    "members": [
-      [ "coreTeam_TK", 5 ],
-      [ "coreTeam_BA", 3 ],
-      [ "coreTeam_BM", 2 ]
-    ],
-    "owner": "coreTeam"
-  },
-  "coreTeam": {
-    "type": "Voting",
-    "name": "Core Team",
-    "weights": "coreTeamGroup",
-    "proposer": "(members)",
-    "enacter": "(members)"
-  },
+    "coreTeamGroup": {
+      "type": "Group",
+      "name": "Core Team",
+      "members": [
+        [ "coreTeam_TK", 5 ],
+        [ "coreTeam_BA", 3 ],
+        [ "coreTeam_BM", 2 ]
+      ],
+      "owner": "coreTeam"
+    },
+    "coreTeam": {
+      "type": "Voting",
+      "name": "Core Team",
+      "weights": "coreTeamGroup",
+      "proposer": "(members)",
+      "enacter": "(members)"
+    },
 
-  "apocryphToken": {
-    "type": "TokenAgeToken",
-    "name": "Apocryph Token",
-    "totalSupply": 1000000000,
-    "tokenHolders": [
-      [ "bondingCurve",  500000000 ],
-      [ "vesting", 150000000, [ "coreTeam", "6 months", 5, "1 year" ] ],
-      [ "vesting", 150000000, [ "comrade", "6 months", 5, "1 year" ] ],
-      [ "vesting", 200000000, [ "apocryph", "6 months", 0, "1 block" ] ]
-    ]
-  },
-  "vesting": {
-    "type": "Vesting",
-    "name": "Apocryph Token",
-    "token": "apocryphToken"
-  },
+    "apocryphToken": {
+      "type": "TokenAgeToken",
+      "name": "Apocryph Token",
+      "totalSupply": 1000000000,
+      "tokenHolders": [
+        [ "bondingCurve",  500000000 ],
+        [ "vesting", 150000000, [ "coreTeam", "6 months", 5, "1 year" ] ],
+        [ "vesting", 150000000, [ "comrade", "6 months", 5, "1 year" ] ],
+        [ "vesting", 200000000, [ "apocryph", "6 months", 0, "1 block" ] ]
+      ]
+    },
+    "vesting": {
+      "type": "Vesting",
+      "name": "Apocryph Token",
+      "token": "apocryphToken"
+    },
 
-  "apocryph": {
-    "type": "Voting",
-    "name": "Apocryph DAO",
-    "weights": "apocryphToken"
-  },
-  "apocryphAllocations": {
-    "type": "Allocations",
-    "name": "Apocryph DAO",
-    "token": "apocryphToken",
-    "owner": "apocryph"
-  },
+    "apocryph": {
+      "type": "Voting",
+      "name": "Apocryph DAO",
+      "weights": "apocryphToken"
+    },
+    "apocryphAllocations": {
+      "type": "Allocations",
+      "name": "Apocryph DAO",
+      "token": "apocryphToken",
+      "owner": "apocryph"
+    },
 
-  "bondingCurve": {
-    "type": "BondingCurve",
-    "name": "Apocryph Bonding Curve",
-    "tokenA": "apocryphToken",
-    "tokenB": "bondingCurveToken",
-    "beneficiary": "apocryphAllocations"
+    "bondingCurve": {
+      "type": "BondingCurve",
+      "name": "Apocryph Bonding Curve",
+      "tokenA": "apocryphToken",
+      "tokenB": "bondingCurveToken",
+      "beneficiary": "apocryphAllocations"
+    }
   }
 }

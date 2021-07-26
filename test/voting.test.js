@@ -41,7 +41,7 @@ describe('DeadlingVoting', function () {
     for (const [acl, notRevert, revert] of [
       [nilAddress, [accountOwner, accountMember, accountOther], []],
       [oneAddress, [accountMember], [accountOwner, accountOther]],
-      [accountOther.address, [accountOther], [accountOwner, accountMember]],
+      [accountOther.address, [accountOther], [accountOwner, accountMember]]
     ]) {
       const voting = await DeadlineVoting.deploy(accountOwner.address, acl, nilAddress, group.address, 10)
       await voting.deployTransaction.wait()

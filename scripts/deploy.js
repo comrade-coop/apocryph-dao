@@ -1,6 +1,7 @@
 const chalk = require('chalk')
 const readline = require('readline')
 const fs = require('fs').promises
+const path = require('path')
 
 const log = {
   debug (message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
@@ -15,7 +16,7 @@ const log = {
 const nilAddress = '0x' + '00'.repeat(20)
 const oneAddress = '0x' + '00'.repeat(19) + '01'
 
-const secondsPerBlock = 13
+const secondsPerBlock = network.name === 'localhost' || network.name === 'hardhat' ? 130 : 13
 const timeUnits = {
   '': 1,
   blocks: 1,
@@ -33,12 +34,12 @@ function convertTimeToBlocks (time) {
   return Math.round(parseFloat(number) * scale)
 }
 
-function formatWeiToEth (wei) {
-  const padded = wei.toString().padStart(19, '0')
-  return `${padded.slice(0, -18)}.${padded.slice(-18)} ETH`
-}
-
 function ask (question, defaultValue, validator) {
+  if (process.stdin.readableEnded) {
+    process.stderr.write(`=> ${question}? ${defaultValue ? `[${defaultValue}] ${defaultValue}` : ''}\n`)
+    return Promise.resolve(defaultValue)
+  }
+
   return new Promise((resolve, reject) => {
     const rl = readline.createInterface({
       input: process.stdin,
@@ -55,6 +56,11 @@ function ask (question, defaultValue, validator) {
       if (!resolved) {
         process.stderr.write(defaultValue + '\n')
         resolve(defaultValue)
+      }
+    })
+    rl.on('SIGINT', function () {
+      if (!resolved) {
+        reject(new Error('Cancelled'))
       }
     })
 
@@ -198,9 +204,9 @@ const deployFunctions = {
 
     console.log(weights, owner, proposer, enacter)
     const resolvedWeights = resolve(weights).address
-    const resolvedOwner = owner == '(self)' ? nilAddress : resolve(owner).address
-    const resolvedProposer = proposer == '(any)' ? nilAddress : proposer == '(members)' ? oneAddress : resolve(proposer).address
-    const resolvedEnacter = proposer == '(any)' ? nilAddress : proposer == '(members)' ? oneAddress : resolve(enacter).address
+    const resolvedOwner = owner === '(self)' ? nilAddress : resolve(owner).address
+    const resolvedProposer = proposer === '(any)' ? nilAddress : proposer === '(members)' ? oneAddress : resolve(proposer).address
+    const resolvedEnacter = proposer === '(any)' ? nilAddress : proposer === '(members)' ? oneAddress : resolve(enacter).address
 
     const votingContract = await DeadlineVoting.deploy(resolvedOwner, resolvedProposer, resolvedEnacter, resolvedWeights, convertTimeToBlocks(deadline))
 
@@ -283,8 +289,8 @@ const deployFunctions = {
     }
   },
 
-  Fixed: async function ({ address, name }, signer, resolve) {
-    address = address || await ask(`Address for ${name}`, '(use dummy)', ethers.utils.getAddress)
+  Fixed: async function ({ name }, signer, resolve) {
+    let address = await ask(`Address for ${name}`, '(use dummy)', ethers.utils.getAddress)
 
     if (address === '(use dummy)') {
       log.warning(`Using dummy address for ${name}`)
@@ -295,8 +301,8 @@ const deployFunctions = {
     return { address }
   },
 
-  FixedERC20: async function ({ address, name, initialBalance }, signer, resolve) {
-    address = address || await ask(`Address for ${name}`, '(deploy TestERC20)', ethers.utils.getAddress)
+  FixedERC20: async function ({ name, initialBalance }, signer, resolve) {
+    const address = await ask(`Address for ${name}`, '(deploy TestERC20)', ethers.utils.getAddress)
 
     if (address === '(deploy TestERC20)') {
       log.warning(`Deploying dummy contract for ${name}`)
@@ -318,106 +324,142 @@ function createGasTrackingSigner (signer) {
   const resultSigner = Object.create(signer)
   resultSigner.sendTransaction = async function () {
     const transaction = await signer.sendTransaction.apply(this, arguments)
-    transaction.wait().then(function (transactionReceipt) {
-      resultSigner.gasUsed = resultSigner.gasUsed.add(transactionReceipt.gasUsed)
-      resultSigner.gasPaid = resultSigner.gasPaid.add(transactionReceipt.gasUsed.mul(transaction.gasPrice))
+    transaction.wait().then((transactionReceipt) => {
+      this.gasUsed = [
+        this.gasUsed[0].add(transactionReceipt.gasUsed),
+        this.gasUsed[1].add(transactionReceipt.gasUsed.mul(transaction.gasPrice))
+      ]
     })
     return transaction
   }
-  resultSigner.gasUsed = ethers.BigNumber.from(0)
-  resultSigner.gasPaid = ethers.BigNumber.from(0)
+  resultSigner.gasUsed = [ethers.BigNumber.from(0), ethers.BigNumber.from(0)]
   return resultSigner
+}
+
+function formatWei (weiAmount) {
+  const paddedWei = weiAmount.toString().padStart(19, '0').padStart(19 + 5)
+
+  return `${paddedWei.slice(0, -18)}.${paddedWei.slice(-18)} ETH`
+}
+
+function formatGasUsed (oldGasUsed, newGasUsed) {
+  const gasUsed = newGasUsed[0].sub(oldGasUsed[0])
+  const weiUsed = newGasUsed[1].sub(oldGasUsed[1])
+
+  return `${gasUsed.toString().padStart(7)} = ${formatWei(weiUsed)}`
 }
 
 async function deployConfig (config, signer) {
   signer = signer || (await ethers.getSigners())[0]
   signer = createGasTrackingSigner(signer)
 
-  const startGasUsed = signer.gasUsed
-  const startGasPaid = signer.gasPaid
+  const startGas = signer.gasUsed
 
   log.info('Deploying contracts...')
 
-  const deployed = {}
-  const addresses = {}
+  const resolved = Object.create(null)
+  const deployment = {
+    configFile: config.configFile,
+    network: network.name,
+    startBlock: (await ethers.provider.getBlock()).number,
+    contracts: {
+      deployer: { type: 'Fixed', name: 'Deployer', address: signer.address }
+    }
+  }
 
   function resolve (key) {
-    if (deployed[key]) {
-      return deployed[key]
-    } else if (config[key]) {
-      return { config: config[key] }
+    if (resolved[key]) {
+      return resolved[key]
+    } else if (config.contracts[key]) {
+      return { config: config.contracts[key] }
     } else {
       return { address: key || nilAddress }
     }
   }
 
   let tableSize = 0
-  for (const key in config) {
-    config[key].name = config[key].name || key
-    config[key].type = config[key].type || 'Fixed'
+  for (const key in config.contracts) {
+    config.contracts[key].name = config.contracts[key].name || key
+    config.contracts[key].type = config.contracts[key].type || 'Fixed'
 
-    tableSize = Math.max(tableSize, config[key].name.length + config[key].type.length)
+    tableSize = Math.max(tableSize, config.contracts[key].name.length + config.contracts[key].type.length)
   }
 
-  for (const key in config) {
-    const name = config[key].name
-    const type = config[key].type
+  log.info(`Signer address is ${' '.repeat(tableSize - 2)} ${signer.address} ${chalk.gray(`(balance:       ${formatWei(await signer.getBalance())})`)}`)
 
-    log.trace(`Deploying ${name} (${type})...`)
+  for (const key in config.contracts) {
+    const name = config.contracts[key].name
+    const type = config.contracts[key].type
 
-    const startGasUsed = signer.gasUsed
-    const startGasPaid = signer.gasPaid
+    let result
 
-    const result = await deployFunctions[type](config[key], signer, resolve)
-    result.config = config[key]
+    if (config.contracts[key].address) {
+      result = { address: config.contracts[key].address }
+      log.info(`Found ${chalk.bold(name)} (${type})    ${' '.repeat(tableSize - name.length - type.length)} at ${result.address}`)
+    } else {
+      log.trace(`Deploying ${name} (${type})...`)
 
-    deployed[key] = result
-    addresses[key] = result.address
+      const startGas = signer.gasUsed
 
-    if (result.deployed) await result.deployed
+      result = await deployFunctions[type](config.contracts[key], signer, resolve)
+      if (result.deployed) await result.deployed
 
-    const gasCosts = `(gas: ${(signer.gasUsed - startGasUsed).toString().padStart(7)} = ${formatWeiToEth(signer.gasPaid - startGasPaid)})`
+      log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
+    }
 
-    log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(gasCosts)}`)
+    result.config = config.contracts[key]
+
+    resolved[key] = result
+    deployment.contracts[key] = { type, name, address: result.address }
   }
 
   log.info('Deployed all contracts')
 
-  for (const key in deployed) {
-    if (deployed[key].postDeploy) {
-      const name = deployed[key].config.name
-      const type = deployed[key].config.type
+  for (const key in resolved) {
+    if (resolved[key].postDeploy) {
+      const name = resolved[key].config.name
+      const type = resolved[key].config.type
 
       log.trace(`Initializing ${name} (${type}) ...`)
 
-      const startGasUsed = signer.gasUsed
-      const startGasPaid = signer.gasPaid
+      const startGas = signer.gasUsed
 
-      await deployed[key].postDeploy()
+      await resolved[key].postDeploy()
 
-      log.info(`Initialized ${name} (${type}) ${' '.repeat(tableSize + 43 - name.length - type.length)} ${chalk.gray(`(gas: ${(signer.gasUsed - startGasUsed).toString().padStart(7)} = ${formatWeiToEth(signer.gasPaid - startGasPaid)})`)}`)
+      log.info(`Initialized ${name} (${type}) ${' '.repeat(tableSize + 43 - name.length - type.length)} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
     }
   }
 
-  log.info(`Finished deployment! ${' '.repeat(tableSize + 36)} ${chalk.gray(`(total: ${(signer.gasUsed - startGasUsed).toString().padStart(7)} = ${formatWeiToEth(signer.gasPaid - startGasPaid)})`)}`)
+  log.info(`Finished deployment! ${' '.repeat(tableSize + 36)} ${chalk.gray(`(total: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
 
-  return addresses
+  return deployment
 }
 
 async function readConfig (configFile) {
-  configFile = configFile || (await ask('Config file to deploy', 'config/apocryph.json'))
+  configFile = configFile || (await ask(`Config file to deploy on '${network.name}'`, 'config/apocryph.json'))
 
-  return JSON.parse(await fs.readFile(configFile, 'utf8'))
+  const config = JSON.parse(await fs.readFile(configFile, 'utf8'))
+  config.configFile = configFile
+  return config
+}
+
+async function writeDeployment (config, deployment) {
+  config.deploymentFile = config.deploymentFile || (await ask('Deployment file to write', `deployment/${path.basename(config.configFile, '.json')}-${Date.now()}.json`))
+
+  await fs.mkdir(path.dirname(config.deploymentFile), { recursive: true })
+  await fs.writeFile(config.deploymentFile, JSON.stringify(deployment, null, 2))
+  log.info(`Wrote deployment data to ${config.deploymentFile}`)
+//   process.stdout.write(JSON.stringify(deployment))
 }
 
 async function main () {
   try {
     const config = await readConfig()
-    const result = await deployConfig(config)
-    process.stdout.write(JSON.stringify(result, null, 2))
+    const deployment = await deployConfig(config)
+    await writeDeployment(config, deployment)
     process.exit(0)
   } catch (e) {
-    log.error(e)
+    log.error(e.stack)
     process.exit(1)
   }
 }

@@ -93,12 +93,11 @@ contract BondingCurve is IERC1363Spender, Owned {
 
     // Buy/sell
 
-    function buy(uint256 amountA, uint256 minAmountB, address recepient) public {
-        _buy(msg.sender, amountA, minAmountB, recepient);
+    function buy(uint256 amountA, uint256 maxAmountB, address recepient) public {
+        _buy(msg.sender, amountA, maxAmountB, recepient);
     }
 
     function _buy(address _sender, uint256 amountA, uint256 maxAmountB, address recepient) whenActive private {
-
         if (recepient == address(0)) {
             recepient = _sender;
         }

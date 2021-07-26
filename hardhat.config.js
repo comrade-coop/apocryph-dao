@@ -37,7 +37,7 @@ module.exports = {
     hardhat: {
       mining: {
         auto: true,
-        interval: 0
+        interval: process.argv.indexOf('node') >= 0 ? 50 : 0
       }
     }
   }
