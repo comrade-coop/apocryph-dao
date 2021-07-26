@@ -7,8 +7,8 @@ import "../interfaces/IVotingWeights.sol";
 
 contract GroupCheckpointing {
     struct Checkpoint {
-        uint128 fromTime;
-        uint128 weight;
+        uint96 fromTime;
+        uint160 value;
     }
     Checkpoint private _nilCheckpoint;
 
@@ -20,7 +20,7 @@ contract GroupCheckpointing {
         }
     }
 
-    function _getCheckpoint(Checkpoint[] storage checkpoints, uint128 atTime) internal view returns (Checkpoint storage) {
+    function _getCheckpoint(Checkpoint[] storage checkpoints, uint96 atTime) internal view returns (Checkpoint storage) {
         // Via https://en.wikipedia.org/wiki/Binary_search_algorithm#Procedure_for_finding_the_rightmost_element
         if (checkpoints.length == 0 || atTime < checkpoints[0].fromTime) return _nilCheckpoint;
         if (atTime >= checkpoints[checkpoints.length - 1].fromTime) return checkpoints[checkpoints.length - 1];
@@ -40,7 +40,7 @@ contract GroupCheckpointing {
     }
 
     function _pushCheckpoint(Checkpoint[] storage checkpoints) internal returns (Checkpoint storage checkpoint) {
-        uint128 currentTime = _currentTime();
+        uint96 currentTime = _currentTime();
         if (checkpoints.length > 0 && checkpoints[checkpoints.length - 1].fromTime == currentTime) {
             checkpoint = checkpoints[checkpoints.length - 1];
         } else {
@@ -49,11 +49,11 @@ contract GroupCheckpointing {
         }
     }
 
-    function _currentTime() internal view returns (uint128) {
+    function _currentTime() internal view returns (uint96) {
         return _convertTime(block.number);
     }
 
-    function _convertTime(uint256 blockNumber) internal pure returns (uint128) {
-        return uint128(blockNumber);
+    function _convertTime(uint256 blockNumber) internal pure returns (uint96) {
+        return uint96(blockNumber);
     }
 }

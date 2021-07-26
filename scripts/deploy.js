@@ -202,7 +202,6 @@ const deployFunctions = {
   }, signer, resolve) {
     const DeadlineVoting = await ethers.getContractFactory('DeadlineVoting', signer)
 
-    console.log(weights, owner, proposer, enacter)
     const resolvedWeights = resolve(weights).address
     const resolvedOwner = owner === '(self)' ? nilAddress : resolve(owner).address
     const resolvedProposer = proposer === '(any)' ? nilAddress : proposer === '(members)' ? oneAddress : resolve(proposer).address
@@ -221,6 +220,30 @@ const deployFunctions = {
     members = []
   }, signer, resolve) {
     const Group = await ethers.getContractFactory('Group', signer)
+
+    const { initialParties, initialAmounts, postDeployRelations, postDeployHelper } = processRelations(members, resolve)
+    const groupOwnerAddress = postDeployRelations.length ? signer.address : (resolve(owner).address || signer.address)
+
+    const groupContract = await Group.deploy(initialParties, initialAmounts, groupOwnerAddress)
+
+    return {
+      address: groupContract.address,
+      deployed: groupContract.deployTransaction.wait(),
+      async postDeploy () {
+        await postDeployHelper((resolvedMember, weight) => groupContract.setWeightOf(resolvedMember.address, weight))
+        if (groupOwnerAddress === signer.address) {
+          const resolvedOwner = resolve(owner)
+          await groupContract.setOwner(resolvedOwner.address)
+        }
+      }
+    }
+  },
+
+  DelegatedGroup: async function ({
+    owner,
+    members = []
+  }, signer, resolve) {
+    const Group = await ethers.getContractFactory('DelegatedGroup', signer)
 
     const { initialParties, initialAmounts, postDeployRelations, postDeployHelper } = processRelations(members, resolve)
     const groupOwnerAddress = postDeployRelations.length ? signer.address : (resolve(owner).address || signer.address)

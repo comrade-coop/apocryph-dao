@@ -7,17 +7,11 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "./TokenAgeCheckpointing.sol";
 
 contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
-    mapping (address => Checkpoint[]) internal _checkpoints;
     mapping (address => mapping (address => uint256)) public override allowance;
-
     uint256 public override totalSupply;
 
-    function balanceOf(address owner) public override view returns (uint256 balance) {
-        balance = _getLastCheckpoint(_checkpoints[owner]).balance;
-    }
-
-    function balanceOfAt(address owner, uint256 atBlock) external view returns (uint256 balance) {
-        balance = _getCheckpoint(_checkpoints[owner], _convertTime(atBlock)).balance;
+    function balanceOf(address owner) external override view returns (uint256 balance) {
+        balance = _getLastCheckpoint(balanceStacks[owner]).balance;
     }
 
     function transfer(address to_, uint256 value_) public override returns (bool) { // Throws if unsufficient balance
@@ -28,6 +22,13 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     function transferFrom(address from_, address to_, uint256 value_) public override returns (bool) { // Throws if unsufficient balance or allowance
         allowance[from_][_msgSender()] = allowance[from_][_msgSender()] - value_; // Throws
         _transfer(from_, to_, uint128(value_)); // Throws
+        return true;
+    }
+
+    // Via https://github.com/ethereum/EIPs/issues/738#issuecomment-336277632
+    function safeApprove(address to_, uint256 value_, uint256 oldValue_) public returns (bool) {
+        require(allowance[_msgSender()][to_] == oldValue_);
+        _approve(_msgSender(), to_, value_);
         return true;
     }
 
@@ -42,8 +43,10 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     }
 
     function _transfer(address from_, address to_, uint128 value_) internal { // Throws if unsufficient balance
-        _sub(_checkpoints[from_], value_); // Throws
-        _add(_checkpoints[to_], value_);
+        if (value_ != 0) {
+            _sub(from_, value_); // Throws
+            _add(to_, value_);
+        }
         emit Transfer(from_, to_, value_);
     }
 }

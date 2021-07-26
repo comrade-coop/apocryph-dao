@@ -16,6 +16,7 @@ contract DeadlineVoting is VotingBase, IVoting {
 
     mapping(uint256 => mapping(address => VoteStatus)) public override voteOf;
     mapping(uint256 => VoteCounts) public voteCounts;
+    mapping(uint256 => mapping(address => uint256)) public reducedWeight;
     mapping(uint256 => uint256) public voteStartBlock;
 
     IVotingWeights public weights;
@@ -48,29 +49,37 @@ contract DeadlineVoting is VotingBase, IVoting {
         _vote(voteId, msg.sender, value);
     }
 
-    function _vote(uint256 voteId, address voter, VoteStatus value) internal {
+    function _vote(uint256 voteId, address voter, VoteStatus newVote) internal {
         require(voteActive(voteId));
+        require(newVote != VoteStatus.Nil);
 
-        uint256 weight = weights.weightOfAt(voter, voteStartBlock[voteId]);
-        require(weight > 0);
+        uint256 weight = weights.weightOfAt(voter, voteStartBlock[voteId]) - reducedWeight[voteId][voter];
+        require(weight > 0, "No vote power");
 
-        VoteStatus oldValue = voteOf[voteId][msg.sender];
+        VoteStatus oldDelegatedVote = voteOf[voteId][voter];
 
-        if (oldValue == VoteStatus.Yes) {
+        address delegate = weights.delegateOfAt(voter, voteStartBlock[voteId]);
+        while (delegate != address(0) && oldDelegatedVote == VoteStatus.Nil) {
+            reducedWeight[voteId][delegate] += weight;
+            oldDelegatedVote = voteOf[voteId][delegate];
+            delegate = weights.delegateOfAt(delegate, voteStartBlock[voteId]);
+        }
+
+        if (oldDelegatedVote == VoteStatus.Yes) {
             voteCounts[voteId].countYes -= weight;
-        } else if (oldValue == VoteStatus.No) {
+        } else if (oldDelegatedVote == VoteStatus.No) {
             voteCounts[voteId].countNo -= weight;
         }
 
-        voteOf[voteId][voter] = value;
+        voteOf[voteId][voter] = newVote;
 
-        if (value == VoteStatus.Yes) {
+        if (newVote == VoteStatus.Yes) {
             voteCounts[voteId].countYes += weight;
-        } else if (value == VoteStatus.No) {
+        } else if (newVote == VoteStatus.No) {
             voteCounts[voteId].countNo += weight;
         }
 
-        emit Vote(voteId, voter, value);
+        emit Vote(voteId, voter, newVote);
     }
 
     // Propose/enact hooks (NOTE: observe lack of onlyACL() modifiers, since we are counting on calling the VotingBase implementations directly)

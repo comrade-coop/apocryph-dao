@@ -23,7 +23,7 @@
     },
 
     "coreTeamGroup": {
-      "type": "Group",
+      "type": "DelegatedGroup",
       "name": "Core Team",
       "members": [
         [ "coreTeam_TK", 5 ],
