@@ -108,13 +108,11 @@ function processRelations (relations, resolve) {
     initialAmounts,
     postDeployAmount,
     postDeployRelations,
-    postDeployHelper (handler) {
-      const promises = []
+    async postDeployHelper (handler) {
       for (const [party, amount, data] of postDeployRelations) {
         const resolvedParty = resolve(party)
-        promises.push(handler(resolvedParty, amount, data))
+        await handler(resolvedParty, amount, data)
       }
-      return Promise.all(promises)
     }
   }
 }
