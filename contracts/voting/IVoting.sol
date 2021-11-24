@@ -6,7 +6,7 @@ pragma abicoder v2;
 import "./IVotingBase.sol";
 
 interface IVoting is IVotingBase {
-    event Vote(uint256 voteId, address voter, VoteStatus value);
+    event Vote(uint256 indexed voteId, address indexed voter, VoteStatus value);
 
     enum VoteStatus { Nil, Yes, No }
 

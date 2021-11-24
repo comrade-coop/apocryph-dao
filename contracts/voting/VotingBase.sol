@@ -17,7 +17,7 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
     uint256 internal _nextVoteId;
 
     constructor(address owner_, address proposer_, address enacter_)
-            Owned(owner_ != address(0) ? owner_ : address(this)){
+            Owned(owner_ != address(0) ? owner_ : address(this)) {
         proposer = proposer_;
         enacter = enacter_;
         _nextVoteId = 1;

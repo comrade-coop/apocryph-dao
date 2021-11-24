@@ -24,7 +24,7 @@ describe('Allocations', function () {
   it('Change parameters', async function () {
     const IERC20 = await hre.artifacts.readArtifact('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20')
     const Allocations = await ethers.getContractFactory('Allocations')
-    const [accountA, accountVoting, accountB, accountSupervisor] = await ethers.getSigners()
+    const [accountA, accountVoting, accountB, accountC, accountSupervisor] = await ethers.getSigners()
 
     const allocationAmount = 100
 
@@ -41,15 +41,30 @@ describe('Allocations', function () {
       await expect(f(accountSupervisor)).to.be.reverted
     }
 
-    // TODO: Use getters in test..
-
+    expect(await allocations.isSupervisor(accountB.address, accountSupervisor.address)).to.be.false
+    expect(await allocations.isSupervisorFor(accountB.address, accountSupervisor.address)).to.be.false
     await votingOnlySetterHelper(account => allocations.connect(account).setSupervisor(nilAddress, accountSupervisor.address, true)) // First so we test global supervisor too
 
+    expect(await allocations.isSupervisor(accountB.address, accountSupervisor.address)).to.be.false
+    expect(await allocations.isSupervisorFor(accountB.address, accountSupervisor.address)).to.be.true
     await votingOnlySetterHelper(account => allocations.connect(account).setSupervisor(accountB.address, accountSupervisor.address, true))
-    await votingOnlySetterHelper(account => allocations.connect(account).setLockTime(accountB.address, 11))
+    expect(await allocations.isSupervisor(accountB.address, accountSupervisor.address)).to.be.true
+    expect(await allocations.isSupervisorFor(accountB.address, accountSupervisor.address)).to.be.true
+
+    expect(await allocations.lockDurationRaw(accountB.address)).to.equal(0)
+    expect(await allocations.lockDuration(accountB.address)).to.equal(10)
+    await votingOnlySetterHelper(account => allocations.connect(account).setLockDuration(accountB.address, '0x' + 'FF'.repeat(96/8)))
+    expect(await allocations.lockDuration(accountB.address)).to.equal(0)
+    await votingOnlySetterHelper(account => allocations.connect(account).setLockDuration(accountB.address, 11))
+    expect(await allocations.lockDuration(accountB.address)).to.equal(11)
+
     await votingOnlySetterHelper(account => allocations.connect(account).setSupervisor(accountB.address, accountSupervisor.address, false))
 
-    await votingOnlySetterHelper(account => allocations.connect(account).setLockTime(nilAddress, 12))
+    expect(await allocations.lockDuration(accountC.address)).to.equal(10)
+    await votingOnlySetterHelper(account => allocations.connect(account).setLockDuration(nilAddress, 12))
+    expect(await allocations.lockDuration(accountB.address)).to.equal(11)
+    expect(await allocations.lockDuration(accountC.address)).to.equal(12)
+
     await votingOnlySetterHelper(account => allocations.connect(account).setSupervisor(nilAddress, accountSupervisor.address, false))
   })
 
@@ -157,5 +172,32 @@ describe('Allocations', function () {
       await expect(allocations.connect(accountC).revokeClaim(accountB.address))
         .to.be.reverted
     }
+  })
+
+  it('Create and enact instant claim', async function () {
+    const IERC20 = await hre.artifacts.readArtifact('@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20')
+    const Allocations = await ethers.getContractFactory('Allocations')
+    const [accountA, accountVoting, accountB] = await ethers.getSigners()
+
+    const allocationAmount = 100
+    const claimAmount = 10
+
+    const token = await waffle.deployMockContract(accountA, IERC20.abi)
+    const allocations = await Allocations.deploy(accountVoting.address, token.address, 10, [])
+    await allocations.deployTransaction.wait()
+
+    await expect(allocations.connect(accountVoting).setLockDuration(accountB.address, '0x' + 'FF'.repeat(256/8)))
+      .to.not.be.reverted
+
+    await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationAmount))
+      .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, allocationAmount)
+
+    const startBlock = (await ethers.provider.getBlock()).number
+    await expect(allocations.connect(accountB).increaseClaim(claimAmount))
+      .to.emit(allocations, 'ClaimProposed').withArgs(accountB.address, claimAmount)
+
+    await token.mock.transfer.withArgs(accountB.address, claimAmount).returns(true)
+    await expect(allocations.connect(accountB).enactClaim())
+      .to.emit(allocations, 'ClaimEnacted').withArgs(accountB.address, claimAmount)
   })
 })

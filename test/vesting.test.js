@@ -83,7 +83,10 @@ describe('Vesting', function () {
 
     const vestingAmount = 100
     const startBlock = (await ethers.provider.getBlock()).number
-    const vestingData = getVestingData(accountB.address, startBlock + 7, 5, 10)
+    const vestingStartBlock = startBlock + 7
+    const periodCount = 4
+    const periodBlocks = 10
+    const vestingData = getVestingData(accountB.address, vestingStartBlock, periodCount, periodBlocks)
 
     const token = await waffle.deployMockContract(accountA, IERC1363.abi)
     const vesting = await Vesting.deploy(token.address, 'Vested TEST', 'VTEST')
@@ -97,14 +100,25 @@ describe('Vesting', function () {
     await token.mock.transfer.withArgs(accountB.address, 0).reverts()
 
     let totalTransferred = 0
-    for (let i = 0; i < 5; i++) {
-      await advanceTime(startBlock + 7 + i * 10 + 3) // +3 to avoid issue with claim happening too early..
+    for (let i = 0; i < periodCount + 1; i++) {
+      await advanceTime(vestingStartBlock + i * periodBlocks + 3) // +3 to avoid issue with claim happening too early..
 
-      await token.mock.transfer.withArgs(accountB.address, vestingAmount / 5).returns(true)
-      await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
-      await token.mock.transfer.withArgs(accountB.address, vestingAmount / 5).reverts()
-      await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
-      totalTransferred += vestingAmount / 5
+      await token.mock.transfer.withArgs(accountB.address, vestingAmount / (periodCount + 1)).returns(true)
+
+      let tx = vesting.connect(accountB).claim(0, nilAddress)
+      await expect(tx).to.not.be.reverted
+      totalTransferred += vestingAmount / (periodCount + 1)
+
+      if (i < periodCount) {
+        await expect(tx).to.not.emit(vesting, 'Transfer').withArgs(accountB.address, nilAddress, 0);
+
+        await token.mock.transfer.withArgs(accountB.address, vestingAmount / (periodCount + 1)).reverts()
+        await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted
+      } else {
+        await expect(tx).to.emit(vesting, 'Transfer').withArgs(accountB.address, nilAddress, 0)
+
+        await expect(vesting.connect(accountB).claim(0, nilAddress)).to.be.reverted // Burnt token
+      }
     }
     expect(totalTransferred).to.equal(vestingAmount)
   })

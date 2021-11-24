@@ -10,13 +10,13 @@ import "../interfaces/IERC1363.sol";
 contract Vesting is ERC721, IERC1363Receiver {
     using SafeERC20 for IERC20;
 
-    event VestingClaimed(address recepient, uint256 amount);
+    event VestingClaimed(address indexed recepient, uint256 indexed tokenId, uint256 amount);
 
     struct VestingData {
         uint128 totalValue;
         uint128 released;
 
-        // waiting until blockcount == startBlock then periodCount x periodBlocks
+        // waiting until block number == startBlock then periodCount x periodBlocks
         uint128 startBlock;
         uint64 periodCount;
         uint64 periodBlocks;
@@ -103,10 +103,10 @@ contract Vesting is ERC721, IERC1363Receiver {
             if (call) {
                 require(IERC1363(address(_baseToken)).transferAndCall(receiver, toRelease));
             } else {
-                require(_baseToken.transfer(receiver, toRelease));
+                _baseToken.safeTransfer(receiver, toRelease);
             }
 
-            emit VestingClaimed(receiver, toRelease);
+            emit VestingClaimed(receiver, tokenId, toRelease);
         }
     }
 
@@ -130,7 +130,7 @@ contract Vesting is ERC721, IERC1363Receiver {
         if (currentPeriod >= periodCount) {
             return totalValue;
         } else {
-            return totalValue * currentPeriod / periodCount;
+            return totalValue * (currentPeriod + 1) / (periodCount + 1);
         }
     }
 }

@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 pragma abicoder v2;
 
 interface IVotingBase {
-    event Proposal(uint256 voteId);
-    event Enaction(uint256 voteId);
+    event Proposal(uint256 indexed voteId);
+    event Enaction(uint256 indexed voteId);
 
     struct VoteAction {
         // uint96 value;

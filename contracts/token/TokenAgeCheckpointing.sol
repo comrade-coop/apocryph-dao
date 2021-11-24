@@ -83,11 +83,12 @@ abstract contract TokenAgeCheckpointing {
             BalanceCheckpoint[] storage balanceCheckpoints = delegatedBalanceCheckpoints[delegateIterator];
             BalanceCheckpoint storage lastCheckpoint = _getLastCheckpoint(balanceCheckpoints);
 
+            uint192 newBalance = uint192(int192(lastCheckpoint.balance) + balanceChange);
             uint256 newTokenAge = uint256(int256(_getTokenAge(lastCheckpoint, currentTime)) + tokenAgeChange);
 
             BalanceCheckpoint storage newCheckpoint = _pushCheckpoint(balanceCheckpoints);
 
-            newCheckpoint.balance = uint192(int192(lastCheckpoint.balance) + balanceChange);
+            newCheckpoint.balance = newBalance;
             newCheckpoint.tokenAge = newTokenAge;
 
             delegateIterator = _getLastCheckpoint(delegateCheckpoints[delegateIterator]).delegate;
