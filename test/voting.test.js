@@ -76,25 +76,25 @@ describe('DeadlingVoting', function () {
 
     const voteStart = (await ethers.provider.getBlock()).number
     await expect(voting.propose(rationaleHash, actionsHash))
-      .to.emit(voting, 'Proposal').withArgs(1)
+      .to.emit(voting, 'Proposal').withArgs(0)
 
     expect(await voting.voteDeadline()).to.equal(10)
 
-    await expect(voting.connect(accountA).vote(1, 1))
-      .to.emit(voting, 'Vote').withArgs(1, accountA.address, 1)
+    await expect(voting.connect(accountA).vote(0, 1))
+      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
 
-    await expect(voting.enact(1, actions))
+    await expect(voting.enact(0, actions))
       .to.be.reverted // Too early
 
     await advanceTime(voteStart + 10)
 
-    await expect(voting.connect(accountB).vote(1, 1))
+    await expect(voting.connect(accountB).vote(0, 1))
       .to.be.reverted // Too late
 
-    await expect(voting.enact(1, actions))
-      .to.emit(voting, 'Enaction').withArgs(1)
+    await expect(voting.enact(0, actions))
+      .to.emit(voting, 'Enaction').withArgs(0)
 
-    await expect(voting.enact(1, actions))
+    await expect(voting.enact(0, actions))
       .to.be.reverted // Reentrancy check
 
     expect(await voting.voteDeadline()).to.equal(15)
@@ -111,18 +111,18 @@ describe('DeadlingVoting', function () {
     await voting.deployTransaction.wait()
 
     await expect(voting.propose(ethers.utils.id('Test rationale'), ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(1)
+      .to.emit(voting, 'Proposal').withArgs(0)
 
-    await expect(voting.connect(accountA).vote(1, 1))
-      .to.emit(voting, 'Vote').withArgs(1, accountA.address, 1)
+    await expect(voting.connect(accountA).vote(0, 1))
+      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
 
-    await expect(voting.connect(accountB).vote(1, 1))
+    await expect(voting.connect(accountB).vote(0, 1))
       .to.be.reverted
 
     await expect(group.connect(accountA).setWeightOf(accountB.address, 1))
       .to.not.be.reverted
 
-    await expect(voting.connect(accountB).vote(1, 1))
+    await expect(voting.connect(accountB).vote(0, 1))
       .to.be.reverted
   })
 
@@ -149,22 +149,22 @@ describe('DeadlingVoting', function () {
       .to.be.reverted // Smoke test for DelegatedGroup
 
     await expect(voting.propose(ethers.utils.id('Test rationale'), ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(1)
+      .to.emit(voting, 'Proposal').withArgs(0)
 
-    await expect(voting.connect(accountB).vote(1, 2))
-      .to.emit(voting, 'Vote').withArgs(1, accountB.address, 2)
-    expect((await voting.voteCounts(1)).toString()).to.equal([0, 11 + 12].toString())
+    await expect(voting.connect(accountB).vote(0, 2))
+      .to.emit(voting, 'Vote').withArgs(0, accountB.address, 2)
+    expect((await voting.voteCounts(0)).toString()).to.equal([0, 11 + 12].toString())
 
-    await expect(voting.connect(accountA).vote(1, 1))
-      .to.emit(voting, 'Vote').withArgs(1, accountA.address, 1)
-    expect((await voting.voteCounts(1)).toString()).to.equal([11, 12].toString())
+    await expect(voting.connect(accountA).vote(0, 1))
+      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
+    expect((await voting.voteCounts(0)).toString()).to.equal([11, 12].toString())
 
-    await expect(voting.connect(accountD).vote(1, 2))
-      .to.emit(voting, 'Vote').withArgs(1, accountD.address, 2)
-    expect((await voting.voteCounts(1)).toString()).to.equal([11, 12 + 13 + 14].toString())
+    await expect(voting.connect(accountD).vote(0, 2))
+      .to.emit(voting, 'Vote').withArgs(0, accountD.address, 2)
+    expect((await voting.voteCounts(0)).toString()).to.equal([11, 12 + 13 + 14].toString())
 
-    await expect(voting.connect(accountC).vote(1, 1))
-      .to.emit(voting, 'Vote').withArgs(1, accountC.address, 1)
-    expect((await voting.voteCounts(1)).toString()).to.equal([11 + 13, 12 + 14].toString())
+    await expect(voting.connect(accountC).vote(0, 1))
+      .to.emit(voting, 'Vote').withArgs(0, accountC.address, 1)
+    expect((await voting.voteCounts(0)).toString()).to.equal([11 + 13, 12 + 14].toString())
   })
 })

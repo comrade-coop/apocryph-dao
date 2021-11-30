@@ -86,8 +86,20 @@ describe('Allocations', function () {
     await expect(allocations.connect(accountVoting).revokeAllocation(accountB.address, allocationDecreaseAmount))
       .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, allocationAmount - allocationDecreaseAmount)
 
+    expect(await allocations.allocation(accountB.address)).to.equal(allocationAmount - allocationDecreaseAmount)
+
     await expect(allocations.connect(accountVoting).revokeAllocation(accountB.address, allocationAmount - allocationDecreaseAmount))
       .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, 0)
+
+    expect(await allocations.allocation(accountB.address)).to.equal(0)
+
+    await expect(allocations.connect(accountVoting).increaseAllocation(accountB.address, allocationDecreaseAmount))
+      .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, allocationDecreaseAmount)
+    expect(await allocations.allocation(accountB.address)).to.equal(allocationDecreaseAmount)
+
+    await expect(allocations.connect(accountVoting).revokeAllocation(accountB.address, allocationAmount))
+      .to.emit(allocations, 'AllocationChanged').withArgs(accountB.address, 0)
+    expect(await allocations.allocation(accountB.address)).to.equal(0)
   })
 
   it('Create and enact claim', async function () {

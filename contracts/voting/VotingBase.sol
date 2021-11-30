@@ -20,7 +20,6 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
             Owned(owner_ != address(0) ? owner_ : address(this)) {
         proposer = proposer_;
         enacter = enacter_;
-        _nextVoteId = 1;
     }
 
     modifier onlyACL(address wanted) virtual {

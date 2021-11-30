@@ -86,6 +86,10 @@ contract Allocations is Owned {
     function revokeAllocation(address recepient, uint256 amount) onlyOwnerOrSupervisorOrRecepient(recepient) external {
         AllocationData storage allocationData = allocationDatas[recepient];
 
+        if (amount > allocationData.amount) {
+            amount = allocationData.amount;
+        }
+
         allocationData.amount = allocationData.amount - uint160(amount);
 
         if (allocationData.claimAmount > allocationData.amount) {

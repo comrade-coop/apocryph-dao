@@ -15,13 +15,13 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     }
 
     function transfer(address to_, uint256 value_) public override returns (bool) { // Throws if unsufficient balance
-        _transfer(_msgSender(), to_, uint128(value_)); // Throws
+        _transfer(_msgSender(), to_, uint192(value_)); // Throws
         return true;
     }
 
     function transferFrom(address from_, address to_, uint256 value_) public override returns (bool) { // Throws if unsufficient balance or allowance
         allowance[from_][_msgSender()] = allowance[from_][_msgSender()] - value_; // Throws
-        _transfer(from_, to_, uint128(value_)); // Throws
+        _transfer(from_, to_, uint192(value_)); // Throws
         return true;
     }
 
@@ -42,7 +42,7 @@ contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
         emit Approval(from_, to_, value_);
     }
 
-    function _transfer(address from_, address to_, uint128 value_) internal { // Throws if unsufficient balance
+    function _transfer(address from_, address to_, uint192 value_) internal { // Throws if unsufficient balance
         if (value_ != 0) {
             _sub(from_, value_); // Throws
             _add(to_, value_);

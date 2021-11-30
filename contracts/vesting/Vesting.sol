@@ -38,10 +38,6 @@ contract Vesting is ERC721, IERC1363Receiver {
 
         (address receiver, uint128 startBlock, uint64 periodCount, uint64 periodBlocks) = abi.decode(data, (address, uint128, uint64, uint64));
 
-        if (receiver == address(0)) {
-            receiver = operator;
-        }
-
         _mintVesting(receiver != address(0) ? receiver : operator, value, startBlock, periodCount, periodBlocks);
 
         return IERC1363Receiver.onTransferReceived.selector;
