@@ -5,7 +5,7 @@ pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "./IVotingBase.sol";
-import "./Owned.sol";
+import "../util/Owned.sol";
 
 abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
     mapping(uint256 => bytes32) public override rationale;

@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IERC1363Spender.sol";
-import "../voting/Owned.sol";
+import "../util/Owned.sol";
 
 contract BondingCurve is IERC1363Spender, Owned {
     using SafeERC20 for IERC20;

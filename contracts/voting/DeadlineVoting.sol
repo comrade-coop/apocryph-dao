@@ -5,7 +5,7 @@ pragma abicoder v2;
 
 import "./IVoting.sol";
 import "./VotingBase.sol";
-import "./Owned.sol";
+import "../util/Owned.sol";
 import "../interfaces/IVotingWeights.sol";
 
 contract DeadlineVoting is VotingBase, IVoting {
