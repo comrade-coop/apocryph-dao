@@ -7,6 +7,8 @@ import "./GroupCheckpointing.sol";
 import "../interfaces/IVotingWeights.sol";
 
 contract Group is IVotingWeights, Owned, GroupCheckpointing {
+    event WeightChanged(address indexed member, uint256 weight);
+
     mapping(address => Checkpoint[]) internal weights;
 
     constructor(address[] memory initialMembers, uint256[] memory initialWeights, address owner_)
@@ -20,8 +22,18 @@ contract Group is IVotingWeights, Owned, GroupCheckpointing {
         _setWeightOf(member, uint160(weight));
     }
 
+    function modifyWeightOf(address member, int256 weightChange) external onlyOwner {
+        if (weightChange > 0) {
+            _setWeightOf(member, _weightOf(member) + uint160(uint256(weightChange)));
+        } else {
+            _setWeightOf(member, _weightOf(member) - uint160(uint256(-weightChange)));
+        }
+
+    }
+
     function _setWeightOf(address member, uint160 weight) internal {
         _pushCheckpoint(weights[member]).value = weight;
+        emit WeightChanged(member, uint256(weight));
     }
 
     function weightOf(address member) external override view returns (uint256) {

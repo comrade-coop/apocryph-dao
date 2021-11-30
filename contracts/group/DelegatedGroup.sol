@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import "./Group.sol";
 
 contract DelegatedGroup is Group {
+    event DelegateChanged(address indexed member, address indexed delegate);
+
     mapping(address => Checkpoint[]) internal delegates;
 
     constructor(address[] memory initialMembers, uint256[] memory initialWeights, address owner_)
@@ -28,6 +30,8 @@ contract DelegatedGroup is Group {
             require(delegateIterator != member);
             _setWeightOf(delegateIterator, _weightOf(delegateIterator) + weight);
         }
+
+        emit DelegateChanged(member, newDelegate);
     }
 
     function delegateOf(address member) public override view returns (address) {
