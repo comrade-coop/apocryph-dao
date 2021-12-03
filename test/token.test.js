@@ -210,7 +210,7 @@ describe('TokenAgeToken', function () {
 
       if (funcMod) {
         const modPromise = funcMod()
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 10))
         await network.provider.send('evm_mine')
         // await network.provider.send("evm_setAutomine", [true]);
         await modPromise

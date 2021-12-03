@@ -65,7 +65,6 @@
     "apocryphAllocations": {
       "type": "Allocations",
       "name": "Apocryph DAO",
-      "token": "apocryphToken",
       "owner": "apocryph"
     },
 

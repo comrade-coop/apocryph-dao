@@ -8,10 +8,10 @@ import "../util/Owned.sol";
 contract Allocations is Owned {
     using SafeERC20 for IERC20;
 
-    event AllocationChanged(address indexed recepient, uint256 amount);
-    event ClaimProposed(address indexed recepient, uint256 amount);
-    event ClaimRevoked(address indexed recepient, uint256 amount);
-    event ClaimEnacted(address indexed recepient, uint256 amount);
+    event AllocationChanged(address indexed recepient, address indexed token, uint256 amount);
+    event ClaimProposed(address indexed recepient, address indexed token, uint256 amount);
+    event ClaimRevoked(address indexed recepient, address indexed token, uint256 amount);
+    event ClaimEnacted(address indexed recepient, address indexed token, uint256 amount);
 
     struct AllocationData {
         // Packed
@@ -19,20 +19,15 @@ contract Allocations is Owned {
         uint96 lockDuration;
         uint160 claimAmount;
         uint96 claimStartTime;
-        mapping(address => bool) supervisors;
     }
 
-    mapping(address => AllocationData) internal allocationDatas;
-    mapping(address => bool) internal globalSupervisors;
-    uint256 internal defaultLockDuration;
+    mapping(address => mapping(address => AllocationData)) internal allocationDatas; // recepient => token => {..}
+    mapping(address => mapping(address => bool)) public isSupervisor; // recepient | nil(global) => supervisor => bool
 
-    IERC20 internal _token;
-
-    constructor(address owner_, IERC20 token_, uint256 defaultLockDuration_, address[] memory globalSupervisors_) Owned(owner_) {
-        _token = token_;
-        defaultLockDuration = defaultLockDuration_;
+    constructor(address owner_, uint256 defaultLockDuration_, address[] memory globalSupervisors_) Owned(owner_) {
+        allocationDatas[address(0)][address(0)].lockDuration = uint96(defaultLockDuration_);
         for (uint256 i = 0; i < globalSupervisors_.length; i++) {
-            globalSupervisors[globalSupervisors_[i]] = true;
+            isSupervisor[address(0)][globalSupervisors_[i]] = true;
         }
     }
 
@@ -42,49 +37,36 @@ contract Allocations is Owned {
     }
 
     modifier onlyOwnerOrSupervisorOrRecepient(address recepient) {
-        require(msg.sender == owner || msg.sender == recepient || globalSupervisors[msg.sender] || allocationDatas[recepient].supervisors[msg.sender]);
+        require(msg.sender == owner || msg.sender == recepient || isSupervisorFor(recepient, msg.sender));
         _;
     }
 
     // Supervisor
 
-    function isSupervisor(address recepient, address supervisor) external view returns (bool) {
-        if (recepient != address(0)) {
-            return allocationDatas[recepient].supervisors[supervisor];
-        } else {
-            return globalSupervisors[supervisor];
-        }
+    function isSupervisorFor(address recepient, address supervisor) public view returns (bool) {
+        return isSupervisor[recepient][supervisor] || isSupervisor[address(0)][supervisor];
     }
 
-    function isSupervisorFor(address recepient, address supervisor) external view returns (bool) {
-        return allocationDatas[recepient].supervisors[supervisor] || globalSupervisors[supervisor];
-    }
-
-    /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient != 0x0 ? recepient : 'all allocationDatas (past and future)'`.
+    /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient != 0x0 ? recepient : 'all allocations (past and future)'`.
     function setSupervisor(address recepient, address supervisor, bool toggle) onlyOwner external {
-        if (recepient != address(0)) {
-            AllocationData storage allocationData = allocationDatas[recepient];
-            allocationData.supervisors[supervisor] = toggle;
-        } else {
-            globalSupervisors[supervisor] = toggle;
-        }
+        isSupervisor[recepient][supervisor] = toggle;
     }
 
     // Allocation
 
-    function allocation(address recepient) external view returns (uint256) {
-        return allocationDatas[recepient].amount;
+    function allocation(address recepient, address token) external view returns (uint256) {
+        return allocationDatas[recepient][token].amount;
     }
 
-    function increaseAllocation(address recepient, uint256 amount) onlyOwner external {
-        AllocationData storage allocationData = allocationDatas[recepient];
+    function increaseAllocation(address recepient, address token, uint256 amount) onlyOwner external {
+        AllocationData storage allocationData = allocationDatas[recepient][token];
         allocationData.amount = allocationData.amount + uint160(amount);
 
-        emit AllocationChanged(recepient, allocationData.amount);
+        emit AllocationChanged(recepient, token, allocationData.amount);
     }
 
-    function revokeAllocation(address recepient, uint256 amount) onlyOwnerOrSupervisorOrRecepient(recepient) external {
-        AllocationData storage allocationData = allocationDatas[recepient];
+    function revokeAllocation(address recepient, address token, uint256 amount) onlyOwnerOrSupervisorOrRecepient(recepient) external {
+        AllocationData storage allocationData = allocationDatas[recepient][token];
 
         if (amount > allocationData.amount) {
             amount = allocationData.amount;
@@ -96,44 +78,35 @@ contract Allocations is Owned {
             allocationData.claimAmount = allocationData.amount;
         }
 
-        emit AllocationChanged(recepient, allocationData.amount);
+        emit AllocationChanged(recepient, token, allocationData.amount);
     }
 
     // Lock duration
 
-    function lockDurationRaw(address recepient) external view returns (uint256) {
-        if (recepient == address(0)) {
-            return defaultLockDuration;
-        } else {
-            return allocationDatas[recepient].lockDuration;
-        }
+    function lockDurationRaw(address recepient, address token) external view returns (uint256) {
+        return allocationDatas[recepient][token].lockDuration;
     }
 
-    /// @notice Set lock duration for `recepient != 0x0 ? recepient : 'all allocations (default value)'` to `lockDuration_ == 0 ? 'the default value' : lockDuration_ >= (-1 : uint96) ? 'instant' : lockDuration_ + ' blocks'`.
-    function setLockDuration(address recepient, uint256 lockDuration_) onlyOwner external {
-        if (recepient == address(0)) {
-            defaultLockDuration = lockDuration_;
-        } else {
-            AllocationData storage allocationData = allocationDatas[recepient];
-            allocationData.lockDuration = uint96(lockDuration_);
-        }
+    /// @notice Set lock duration for `recepient != 0x0 ? recepient : 'all allocations (default value)'` and `token != 0x0 ? token : 'all tokens'` to `lockDuration_ == 0 ? 'the default value' : lockDuration_ >= (-1 : uint96) ? 'instant' : lockDuration_ + ' blocks'`.
+    function setLockDuration(address recepient, address token, uint256 lockDuration_) onlyOwner external {
+        allocationDatas[recepient][token].lockDuration = uint96(lockDuration_);
     }
 
-    function lockDuration(address recepient) external view returns (uint256) {
-        return _lockDuration(allocationDatas[recepient]);
-    }
-
-    function unlockTime(address recepient) external view returns (uint256) {
-        return _unlockTime(allocationDatas[recepient]);
-    }
-
-    function _unlockTime(AllocationData storage allocationData) private view returns (uint256) {
-        return allocationData.claimStartTime + _lockDuration(allocationData);
+    function lockDuration(address recepient, address token) external view returns (uint256) {
+        return _lockDuration(allocationDatas[recepient][token]);
     }
 
     function _lockDuration(AllocationData storage allocationData) private view returns (uint256) {
         uint96 storedLockDuration = allocationData.lockDuration;
-        return storedLockDuration == 0 ? defaultLockDuration : storedLockDuration == ~uint96(0) ? 0 : storedLockDuration;
+        return storedLockDuration == 0 ? allocationDatas[address(0)][address(0)].lockDuration : storedLockDuration == ~uint96(0) ? 0 : storedLockDuration;
+    }
+
+    function unlockTime(address recepient, address token) external view returns (uint256) {
+        return _unlockTime(allocationDatas[recepient][token]);
+    }
+
+    function _unlockTime(AllocationData storage allocationData) private view returns (uint256) {
+        return allocationData.claimStartTime + _lockDuration(allocationData);
     }
 
 
@@ -143,13 +116,13 @@ contract Allocations is Owned {
 
     // Claim
 
-    function claim(address recepient) external view returns (uint256) {
-        return allocationDatas[recepient].claimAmount;
+    function claim(address recepient, address token) external view returns (uint256) {
+        return allocationDatas[recepient][token].claimAmount;
     }
 
-    function increaseClaim(uint256 amount) external {
+    function increaseClaim(address token, uint256 amount) external {
         address recepient = msg.sender;
-        AllocationData storage allocationData = allocationDatas[recepient];
+        AllocationData storage allocationData = allocationDatas[recepient][token];
         require(amount != 0 && allocationData.amount > 0);
 
         allocationData.claimAmount = allocationData.claimAmount + uint160(amount);
@@ -159,52 +132,69 @@ contract Allocations is Owned {
         }
         allocationData.claimStartTime = _now();
 
-        emit ClaimProposed(recepient, allocationData.claimAmount);
+        emit ClaimProposed(recepient, token, allocationData.claimAmount);
     }
 
-    function revokeClaim(address recepient) onlyOwnerOrSupervisorOrRecepient(recepient) external {
-        AllocationData storage allocationData = allocationDatas[recepient];
+    function revokeClaim(address recepient, address token) onlyOwnerOrSupervisorOrRecepient(recepient) external {
+        AllocationData storage allocationData = allocationDatas[recepient][token];
         // require(_now() < _unlockTime(allocationData));
 
         uint256 claimAmount = allocationData.claimAmount;
         allocationData.claimAmount = 0;
         allocationData.claimStartTime = 0;
 
-        emit ClaimRevoked(recepient, claimAmount);
+        emit ClaimRevoked(recepient, token, claimAmount);
     }
 
-    function unlockClaim(address recepient) onlyOwner external {
-        AllocationData storage allocationData = allocationDatas[recepient];
+    function unlockClaim(address recepient, address token) onlyOwner external {
+        AllocationData storage allocationData = allocationDatas[recepient][token];
 
         allocationData.claimStartTime = 0;
 
-        //emit ClaimUnlocked(recepient); // Seems excessive, since claim unlocking is not likely to happen
+        //emit ClaimUnlocked(recepient, token); // Seems excessive, since claim unlocking is rare
     }
 
-    function enactClaim() external {
+    function enactClaim(address token) external {
         address recepient = msg.sender;
 
-        AllocationData storage allocationData = allocationDatas[recepient];
+        AllocationData storage allocationData = allocationDatas[recepient][token];
         require(_now() >= _unlockTime(allocationData));
 
         uint256 amount = allocationData.claimAmount;
+        require(amount > 0);
+
         allocationData.amount = allocationData.amount - uint160(amount);
         allocationData.claimAmount = 0;
         allocationData.claimStartTime = 0;
 
-        _token.safeTransfer(recepient, amount);
-        // _token.safeTransferFrom(owner, recepient, amount);
+        // NOTE: We can trust that the owner has approved the token because we know allocationDatas[recepient][token].amount>0 which can only happen through increaseAllocation.
+        _transfer(recepient, token, amount);
 
-        emit ClaimEnacted(recepient, amount);
+        emit ClaimEnacted(recepient, token, amount);
     }
 
     // Withdraw
 
-    function withdraw(address recepient, uint256 amount) onlyOwner external {
+    function withdraw(address recepient, address token, uint256 amount) onlyOwner external {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }
 
-        _token.safeTransfer(recepient, amount);
+        _transfer(recepient, token, amount);
+    }
+
+    // Transfers
+
+    function _transfer(address recepient, address token, uint256 amount) internal {
+        if (token == address(0)) {
+            payable(recepient).transfer(amount);
+        } else {
+            IERC20(token).safeTransfer(recepient, amount);
+            // _token.safeTransferFrom(owner, recepient, amount);
+        }
+    }
+
+    receive() external payable {
+        // allow
     }
 }

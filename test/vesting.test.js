@@ -105,12 +105,12 @@ describe('Vesting', function () {
 
       await token.mock.transfer.withArgs(accountB.address, vestingAmount / (periodCount + 1)).returns(true)
 
-      let tx = vesting.connect(accountB).claim(0, nilAddress)
+      const tx = vesting.connect(accountB).claim(0, nilAddress)
       await expect(tx).to.not.be.reverted
       totalTransferred += vestingAmount / (periodCount + 1)
 
       if (i < periodCount) {
-        await expect(tx).to.not.emit(vesting, 'Transfer').withArgs(accountB.address, nilAddress, 0);
+        await expect(tx).to.not.emit(vesting, 'Transfer').withArgs(accountB.address, nilAddress, 0)
 
         await token.mock.transfer.withArgs(accountB.address, vestingAmount / (periodCount + 1)).reverts()
         await expect(vesting.connect(accountB).claim(0, nilAddress)).to.not.be.reverted

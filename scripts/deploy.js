@@ -293,7 +293,6 @@ const deployFunctions = {
   },
 
   Allocations: async function ({
-    token,
     owner,
     claimLockTime = '3 days',
     globalSupervisors = []
@@ -301,7 +300,7 @@ const deployFunctions = {
     const Allocations = await ethers.getContractFactory('Allocations', signer)
 
     const allocationsContract = await Allocations.deploy(
-      resolve(owner).address, resolve(token).address, convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
+      resolve(owner).address, convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
     )
 
     return {
