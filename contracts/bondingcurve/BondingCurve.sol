@@ -68,7 +68,7 @@ contract BondingCurve is IERC1363Spender, Owned {
         _;
     }
 
-    function enactTransition() whenActive public {
+    function enactTransition() public whenActive {
         require(balanceA == 0 && block.number >= transitionEndBlock);
 
         transitionEndBlock = type(uint96).max;
@@ -97,7 +97,7 @@ contract BondingCurve is IERC1363Spender, Owned {
         _buy(msg.sender, amountA, maxAmountB, recepient);
     }
 
-    function _buy(address _sender, uint256 amountA, uint256 maxAmountB, address recepient) whenActive private {
+    function _buy(address _sender, uint256 amountA, uint256 maxAmountB, address recepient) private whenActive {
         if (recepient == address(0)) {
             recepient = _sender;
         }
@@ -126,7 +126,7 @@ contract BondingCurve is IERC1363Spender, Owned {
         _sell(msg.sender, amountA, minAmountB, recepient);
     }
 
-    function _sell(address _sender, uint256 amountA, uint256 minAmountB, address recepient) whenActive private {
+    function _sell(address _sender, uint256 amountA, uint256 minAmountB, address recepient) private whenActive {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }
@@ -189,7 +189,7 @@ contract BondingCurve is IERC1363Spender, Owned {
 
     // Withdraw
 
-    function withdraw(address recepient, uint256 amount) onlyOwner external {
+    function withdraw(address recepient, uint256 amount) external onlyOwner {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }

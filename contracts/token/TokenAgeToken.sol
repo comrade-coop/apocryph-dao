@@ -6,8 +6,6 @@ import "./TokenAgeERC1363.sol";
 import "./TokenAgeWeights.sol";
 
 contract TokenAgeToken is TokenAgeERC1363, TokenAgeWeights {
-    event Delegate(address indexed from, address indexed to);
-
     string public name;
     string public symbol;
     uint8 public decimals;
@@ -21,11 +19,5 @@ contract TokenAgeToken is TokenAgeERC1363, TokenAgeWeights {
             _add(initialOwners[i], initialBalances[i]);
             totalSupply += uint256(initialBalances[i]);
         }
-    }
-
-    function delegate(address to_) public {
-        _setDelegate(_msgSender(), to_);
-
-        emit Delegate(_msgSender(), to_);
     }
 }

@@ -5,7 +5,15 @@ pragma solidity ^0.8.0;
 import "./TokenAgeERC20.sol";
 import "../interfaces/IVotingWeights.sol";
 
-contract TokenAgeWeights is TokenAgeERC20, IVotingWeights {
+abstract contract TokenAgeWeights is TokenAgeERC20, IVotingWeights {
+    event Delegate(address indexed from, address indexed to);
+
+    function delegate(address to_) public {
+        _setDelegate(_msgSender(), to_);
+
+        emit Delegate(_msgSender(), to_);
+    }
+
     function ownWeightOf(address owner) public view returns (uint256 weight) {
         BalanceCheckpoint storage checkpoint = _getLastCheckpoint(balanceStacks[owner]);
         weight = _getTokenAge(checkpoint, _currentTime());
@@ -31,12 +39,12 @@ contract TokenAgeWeights is TokenAgeERC20, IVotingWeights {
         weight = _getTokenAge(checkpoint, atTime);
     }
 
-    function delegateOf(address owner) public view returns (address delegate) {
-        delegate = _getLastCheckpoint(delegateCheckpoints[owner]).delegate;
+    function delegateOf(address owner) public view returns (address delegate_) {
+        delegate_ = _getLastCheckpoint(delegateCheckpoints[owner]).delegate;
     }
 
-    function delegateOfAt(address owner, uint256 atBlock) public override view returns (address delegate) {
+    function delegateOfAt(address owner, uint256 atBlock) public override view returns (address delegate_) {
         uint64 atTime = _convertTime(atBlock);
-        delegate = _getCheckpoint(delegateCheckpoints[owner], atTime).delegate;
+        delegate_ = _getCheckpoint(delegateCheckpoints[owner], atTime).delegate;
     }
 }

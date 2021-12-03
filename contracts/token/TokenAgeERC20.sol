@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "./TokenAgeCheckpointing.sol";
 
-contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
+abstract contract TokenAgeERC20 is TokenAgeCheckpointing, IERC20, Context {
     mapping (address => mapping (address => uint256)) public override allowance;
     uint256 public override totalSupply;
 

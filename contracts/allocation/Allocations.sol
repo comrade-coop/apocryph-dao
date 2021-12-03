@@ -48,7 +48,7 @@ contract Allocations is Owned {
     }
 
     /// @notice Make `supervisor` `toggle ? 'be' : 'no longer be'` a supervisor for `recepient != 0x0 ? recepient : 'all allocations (past and future)'`.
-    function setSupervisor(address recepient, address supervisor, bool toggle) onlyOwner external {
+    function setSupervisor(address recepient, address supervisor, bool toggle) external onlyOwner {
         isSupervisor[recepient][supervisor] = toggle;
     }
 
@@ -58,14 +58,14 @@ contract Allocations is Owned {
         return allocationDatas[recepient][token].amount;
     }
 
-    function increaseAllocation(address recepient, address token, uint256 amount) onlyOwner external {
+    function increaseAllocation(address recepient, address token, uint256 amount) external onlyOwner {
         AllocationData storage allocationData = allocationDatas[recepient][token];
         allocationData.amount = allocationData.amount + uint160(amount);
 
         emit AllocationChanged(recepient, token, allocationData.amount);
     }
 
-    function revokeAllocation(address recepient, address token, uint256 amount) onlyOwnerOrSupervisorOrRecepient(recepient) external {
+    function revokeAllocation(address recepient, address token, uint256 amount) external onlyOwnerOrSupervisorOrRecepient(recepient) {
         AllocationData storage allocationData = allocationDatas[recepient][token];
 
         if (amount > allocationData.amount) {
@@ -88,7 +88,7 @@ contract Allocations is Owned {
     }
 
     /// @notice Set lock duration for `recepient != 0x0 ? recepient : 'all allocations (default value)'` and `token != 0x0 ? token : 'all tokens'` to `lockDuration_ == 0 ? 'the default value' : lockDuration_ >= (-1 : uint96) ? 'instant' : lockDuration_ + ' blocks'`.
-    function setLockDuration(address recepient, address token, uint256 lockDuration_) onlyOwner external {
+    function setLockDuration(address recepient, address token, uint256 lockDuration_) external onlyOwner {
         allocationDatas[recepient][token].lockDuration = uint96(lockDuration_);
     }
 
@@ -135,7 +135,7 @@ contract Allocations is Owned {
         emit ClaimProposed(recepient, token, allocationData.claimAmount);
     }
 
-    function revokeClaim(address recepient, address token) onlyOwnerOrSupervisorOrRecepient(recepient) external {
+    function revokeClaim(address recepient, address token) external onlyOwnerOrSupervisorOrRecepient(recepient) {
         AllocationData storage allocationData = allocationDatas[recepient][token];
         // require(_now() < _unlockTime(allocationData));
 
@@ -146,7 +146,7 @@ contract Allocations is Owned {
         emit ClaimRevoked(recepient, token, claimAmount);
     }
 
-    function unlockClaim(address recepient, address token) onlyOwner external {
+    function unlockClaim(address recepient, address token) external onlyOwner {
         AllocationData storage allocationData = allocationDatas[recepient][token];
 
         allocationData.claimStartTime = 0;
@@ -175,7 +175,7 @@ contract Allocations is Owned {
 
     // Withdraw
 
-    function withdraw(address recepient, address token, uint256 amount) onlyOwner external {
+    function withdraw(address recepient, address token, uint256 amount) external onlyOwner {
         if (recepient == address(0)) {
             recepient = msg.sender;
         }
