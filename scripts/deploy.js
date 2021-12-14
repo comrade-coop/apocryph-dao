@@ -2,6 +2,7 @@ const chalk = require('chalk')
 const readline = require('readline')
 const fs = require('fs').promises
 const path = require('path')
+const ethernal = require('hardhat-ethernal');
 
 const log = {
   debug (message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
@@ -16,7 +17,7 @@ const log = {
 const nilAddress = '0x' + '00'.repeat(20)
 const oneAddress = '0x' + '00'.repeat(19) + '01'
 
-const secondsPerBlock = network.name === 'localhost' || network.name === 'hardhat' ? 130 : 13
+const secondsPerBlock = network.name === 'localhost' || network.name === 'hardhat' ? 130 : 2
 const timeUnits = {
   '': 1,
   blocks: 1,
