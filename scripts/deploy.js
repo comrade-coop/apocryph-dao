@@ -84,10 +84,10 @@ function ask (question, defaultValue, validator) {
 // Deployment helpers
 
 function processRelations (relations, resolve) {
-  let totalAmount = 0
+  let totalAmount = ethers.BigNumber.from(0)
   const initialParties = []
   const initialAmounts = []
-  let postDeployAmount = 0
+  let postDeployAmount = ethers.BigNumber.from(0)
   const postDeployRelations = []
 
   for (const [party, amount, data] of relations) {
@@ -96,10 +96,10 @@ function processRelations (relations, resolve) {
       initialParties.push(resolvedParty.address)
       initialAmounts.push(amount)
     } else {
-      postDeployAmount += amount
+      postDeployAmount = postDeployAmount.add(amount)
       postDeployRelations.push([party, amount, data])
     }
-    totalAmount += amount
+    totalAmount = totalAmount.add(amount)
   }
 
   return {
@@ -122,7 +122,7 @@ const deployFunctions = {
   TokenAgeToken: async function ({
     tokenName = 'Apocryph',
     tokenSymbol = 'CRYPH',
-    decimals = 10,
+    decimals = '10',
     tokenHolders = [], // [?address, amount]
     totalSupply = undefined
   }, signer, resolve) {
@@ -130,16 +130,17 @@ const deployFunctions = {
 
     let { initialParties, initialAmounts, postDeployAmount, postDeployHelper, totalAmount } = processRelations(tokenHolders, resolve, totalSupply)
 
-    if (totalSupply !== undefined && totalSupply !== totalAmount) {
-      postDeployAmount += totalSupply - totalAmount
-      if (totalSupply > totalAmount) {
-        log.warning(`Fixed supply of ${totalSupply} ${tokenSymbol} is ${totalSupply - totalAmount} ${tokenSymbol} more than total assignment of ${totalSupply} ${tokenSymbol}; reassigning the rest to signer`)
-      } else {
-        throw new Error(`Total assignment of ${totalAmount} ${tokenSymbol} is ${totalAmount - totalSupply} ${tokenSymbol} less than fixed supply of ${totalSupply} ${tokenSymbol}`)
+    if (totalSupply !== undefined) {
+      const supplyDifference = ethers.BigNumber.from(totalSupply).sub(totalAmount)
+      if (supplyDifference.gt(0)) {
+        postDeployAmount = postDeployAmount.add(supplyDifference)
+        log.warning(`Fixed supply of ${totalSupply} ${tokenSymbol} is ${supplyDifference} ${tokenSymbol} more than total assignment of ${totalSupply} ${tokenSymbol}; reassigning the rest to signer`)
+      } else if (supplyDifference.lt(0)) {
+        throw new Error(`Total assignment of ${totalAmount} ${tokenSymbol} is ${supplyDifference} ${tokenSymbol} less than fixed supply of ${totalSupply} ${tokenSymbol}`)
       }
     }
 
-    if (postDeployAmount > 0) {
+    if (postDeployAmount.gt(0)) {
       initialParties.push(signer.address)
       initialAmounts.push(postDeployAmount)
     }
@@ -180,7 +181,7 @@ const deployFunctions = {
     return {
       address: vestingContract.address,
       deployed: vestingContract.deployTransaction.wait(),
-      async handleTransfer (tokenContract, amount, [target, delayBlocks = '6 months', periodCount = 6, periodBlocks = '6 months']) {
+      async handleTransfer (tokenContract, amount, [target, delayBlocks = '6 months', periodCount = '6', periodBlocks = '6 months']) {
         const startBlock = currentBlock + convertTimeToBlocks(delayBlocks)
         const resolvedTarget = resolve(target)
         const data = ethers.utils.defaultAbiCoder.encode(
@@ -266,8 +267,8 @@ const deployFunctions = {
       tokenA,
       tokenB,
       beneficiary,
-      price = [3, 100, 1],
-      tax = [1, 100],
+      price = ['3', '100', '1'],
+      tax = ['1', '100'],
       threshold = 0.01,
       thresholdDeadline = '3 days'
     } = config
@@ -277,7 +278,7 @@ const deployFunctions = {
     const resolvedTokenA = resolve(tokenA)
     const initialTokenA = resolvedTokenA.config.tokenHolders
       .filter(x => resolve(x[0]).config === config)
-      .reduce((a, x) => a + x[1], 0)
+      .reduce((a, x) => a.add(x[1]), ethers.BigNumber.from(0))
 
     const bondingCurveContract = await BondingCurve.deploy(
       resolvedTokenA.address, resolve(tokenB).address, resolve(beneficiary).address,
