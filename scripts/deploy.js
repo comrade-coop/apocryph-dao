@@ -16,7 +16,13 @@ const log = {
 const nilAddress = '0x' + '00'.repeat(20)
 const oneAddress = '0x' + '00'.repeat(19) + '01'
 
-const secondsPerBlock = network.name === 'localhost' || network.name === 'hardhat' ? 130 : 13
+const secondsPerBlock =
+  network.name === 'localhost' || network.name === 'hardhat'
+    ? 130
+    : network.name.startsWith('polygon')
+      ? 2
+      : 13
+
 const timeUnits = {
   '': 1,
   blocks: 1,
@@ -269,7 +275,7 @@ const deployFunctions = {
       beneficiary,
       price = ['3', '100', '1'],
       tax = ['1', '100'],
-      threshold = 0.01,
+      threshold = ['1', '100'],
       thresholdDeadline = '3 days'
     } = config
 
@@ -284,7 +290,7 @@ const deployFunctions = {
       resolvedTokenA.address, resolve(tokenB).address, resolve(beneficiary).address,
       initialTokenA, price[0], price[1], price[2],
       tax[0], tax[1],
-      Math.round(initialTokenA * threshold), convertTimeToBlocks(thresholdDeadline)
+      initialTokenA.mul(threshold[0]).div(threshold[1]), convertTimeToBlocks(thresholdDeadline)
     )
 
     return {
