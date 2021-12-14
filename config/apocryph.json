@@ -16,10 +16,14 @@
       "type": "Fixed",
       "name": "@bojidar-bg"
     },
+    "coreTeam_KW": {
+      "type": "Fixed",
+      "name": "@kamilwojciechowski"
+    },
     "bondingCurveToken": {
       "type": "FixedERC20",
       "name": "Bonding Curve Buy Token",
-      "initialBalance": 1000000000
+      "initialBalance": "10000000000000000000"
     },
 
     "coreTeamGroup": {
@@ -28,7 +32,8 @@
       "members": [
         [ "coreTeam_TK", 5 ],
         [ "coreTeam_BA", 3 ],
-        [ "coreTeam_BM", 2 ]
+        [ "coreTeam_BM", 2 ],
+        [ "coreTeam_KW", 2 ]
       ],
       "owner": "coreTeam"
     },
@@ -43,12 +48,12 @@
     "apocryphToken": {
       "type": "TokenAgeToken",
       "name": "Apocryph Token",
-      "totalSupply": 1000000000,
+      "totalSupply": "10000000000000000000",
       "tokenHolders": [
-        [ "bondingCurve",  500000000 ],
-        [ "vesting", 150000000, [ "coreTeam", "6 months", 5, "1 year" ] ],
-        [ "vesting", 150000000, [ "comrade", "6 months", 5, "1 year" ] ],
-        [ "vesting", 200000000, [ "apocryph", "6 months", 0, "1 block" ] ]
+        [ "bondingCurve",  "5000000000000000000" ],
+        [ "vesting", "1500000000000000000", [ "coreTeam", "6 months", 5, "1 year" ] ],
+        [ "vesting", "1500000000000000000", [ "comrade", "6 months", 5, "1 year" ] ],
+        [ "vesting", "2000000000000000000", [ "apocryph", "6 months", 0, "1 block" ] ]
       ]
     },
     "vesting": {
