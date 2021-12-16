@@ -1,9 +1,6 @@
-require('hardhat-ethernal');
-require('dotenv').config();
+require('dotenv').config()
 
 const { EthersProviderWrapper } = require('@nomiclabs/hardhat-ethers/internal/ethers-provider-wrapper')
-const POLYGON_PRIVATE_KEY = process.env.POLYGON_PRIVATE_KEY;
-const POLYGON_URL = process.env.POLYGON_URL;
 
 // No sensible way to override the polling interval, and hardhat-ethers waits for a full polling interval after manually mining a block with transactions
 Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
@@ -14,8 +11,8 @@ Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
 
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
-
 require('hardhat-gas-reporter')
+require('hardhat-ethernal')
 
 task('accounts', 'Prints the list of accounts', async () => {
   const accounts = await ethers.getSigners()
@@ -24,6 +21,11 @@ task('accounts', 'Prints the list of accounts', async () => {
     console.log(account.address)
   }
 })
+
+extendEnvironment((hre) => {
+  hre.ethernalSync = true;
+  hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`;
+});
 
 module.exports = {
   solidity: {
@@ -43,16 +45,18 @@ module.exports = {
     hardhat: {
       mining: {
         auto: true,
-        interval: process.argv.indexOf('node') >= 0 ? 50 : 0
+        interval: process.argv.indexOf('node') >= 0 ? 130*1000 : 0
       }
-    },
-    polygon_mumbai: {
-      url: `${POLYGON_URL}`,
-      chainId: 80001,
-      gas: "auto",
-      gasPrice: "auto",
-      accounts: [`0x${POLYGON_PRIVATE_KEY}`],
-      timeout: 20000
     }
+  }
+}
+if (process.env.POLYGON_PRIVATE_KEY) {
+  module.exports.networks.polygon_mumbai = {
+    url: `${process.env.POLYGON_UR}`,
+    chainId: 80001,
+    gas: 'auto',
+    gasPrice: 'auto',
+    accounts: [`0x${process.env.POLYGON_PRIVATE_KEY}`],
+    timeout: 20000
   }
 }
