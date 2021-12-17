@@ -1,4 +1,3 @@
-require('hardhat-ethernal')
 require('dotenv').config()
 
 const { EthersProviderWrapper } = require('@nomiclabs/hardhat-ethers/internal/ethers-provider-wrapper')
@@ -12,8 +11,8 @@ Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
 
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
-
 require('hardhat-gas-reporter')
+require('hardhat-ethernal')
 
 task('accounts', 'Prints the list of accounts', async () => {
   const accounts = await ethers.getSigners()
@@ -22,6 +21,11 @@ task('accounts', 'Prints the list of accounts', async () => {
     console.log(account.address)
   }
 })
+
+extendEnvironment((hre) => {
+  hre.ethernalSync = true;
+  hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`;
+});
 
 module.exports = {
   solidity: {
@@ -41,7 +45,7 @@ module.exports = {
     hardhat: {
       mining: {
         auto: true,
-        interval: process.argv.indexOf('node') >= 0 ? 50 : 0
+        interval: process.argv.indexOf('node') >= 0 ? 130*1000 : 0
       }
     }
   }
