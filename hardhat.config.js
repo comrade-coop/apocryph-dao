@@ -52,7 +52,7 @@ module.exports = {
 }
 if (process.env.POLYGON_PRIVATE_KEY) {
   module.exports.networks.polygon_mumbai = {
-    url: `${process.env.POLYGON_UR}`,
+    url: `${process.env.POLYGON_URL}`,
     chainId: 80001,
     gas: 'auto',
     gasPrice: 'auto',
