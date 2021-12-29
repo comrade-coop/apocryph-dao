@@ -22,11 +22,11 @@ task('accounts', 'Prints the list of accounts', async () => {
   }
 })
 
-if(process.env.ETHERAL_WORKSPACE) {
+if (process.env.ETHERAL_WORKSPACE) {
   extendEnvironment((hre) => {
-    hre.ethernalSync = true;
-    hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`;
-  });
+    hre.ethernalSync = true
+    hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`
+  })
 }
 
 module.exports = {
@@ -46,8 +46,8 @@ module.exports = {
   networks: {
     hardhat: {
       mining: {
-        auto: true,
-        interval: process.argv.indexOf('node') >= 0 ? 130*1000 : 0
+        auto: process.argv.indexOf('node') < 0,
+        interval: process.argv.indexOf('node') >= 0 ? 130 * 1000 : 0
       }
     }
   }

@@ -2,15 +2,15 @@ const chalk = require('chalk')
 const readline = require('readline')
 const fs = require('fs').promises
 const path = require('path')
-const hre = require("hardhat");
-const ethernal = require('hardhat-ethernal');
+const hre = require('hardhat')
+const ethernal = require('hardhat-ethernal')
 
 const log = {
-  debug(message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
-  trace(message) { process.stderr.write(chalk.gray(`TRACE: ${chalk.gray(message)}`) + '\n') },
-  info(message) { process.stderr.write(`INFO: ${message}` + '\n') },
-  warning(message) { process.stderr.write(chalk.bold.yellow(`WARN: ${message}`) + '\n') },
-  error(message) { process.stderr.write(chalk.bold.red(`ERROR: ${message}`) + '\n') }
+  debug (message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
+  trace (message) { process.stderr.write(chalk.gray(`TRACE: ${chalk.gray(message)}`) + '\n') },
+  info (message) { process.stderr.write(`INFO: ${message}` + '\n') },
+  warning (message) { process.stderr.write(chalk.bold.yellow(`WARN: ${message}`) + '\n') },
+  error (message) { process.stderr.write(chalk.bold.red(`ERROR: ${message}`) + '\n') }
 }
 
 // Utilities
@@ -36,13 +36,13 @@ const timeUnits = {
   years: 356 * 24 * 60 * 60 / secondsPerBlock
 }
 
-function convertTimeToBlocks(time) {
+function convertTimeToBlocks (time) {
   const [, number, unit] = /(\d+\.?|\d*\.\d+) ?(\w*)/.exec(time)
   const scale = timeUnits[unit] || timeUnits[unit + 's']
   return Math.round(parseFloat(number) * scale)
 }
 
-function ask(question, defaultValue, validator) {
+function ask (question, defaultValue, validator) {
   if (process.stdin.readableEnded) {
     process.stderr.write(`=> ${question}? ${defaultValue ? `[${defaultValue}] ${defaultValue}` : ''}\n`)
     return Promise.resolve(defaultValue)
@@ -55,7 +55,7 @@ function ask(question, defaultValue, validator) {
     })
 
     let resolved = false
-    function _resolve(result) {
+    function _resolve (result) {
       resolved = true
       rl.close()
       resolve(result)
@@ -72,7 +72,7 @@ function ask(question, defaultValue, validator) {
       }
     })
 
-    function callback(answer) {
+    function callback (answer) {
       if (validator && answer) {
         Promise.resolve(validator(answer))
           .then(_resolve)
@@ -91,7 +91,7 @@ function ask(question, defaultValue, validator) {
 
 // Deployment helpers
 
-function processRelations(relations, resolve) {
+function processRelations (relations, resolve) {
   let totalAmount = ethers.BigNumber.from(0)
   const initialParties = []
   const initialAmounts = []
@@ -116,7 +116,7 @@ function processRelations(relations, resolve) {
     initialAmounts,
     postDeployAmount,
     postDeployRelations,
-    async postDeployHelper(handler) {
+    async postDeployHelper (handler) {
       for (const [party, amount, data] of postDeployRelations) {
         const resolvedParty = resolve(party)
         await handler(resolvedParty, amount, data)
@@ -157,14 +157,13 @@ const deployFunctions = {
 
     return {
       address: tokenContract.address,
-      contractName: "TokenAgeToken",
+      contractName: 'TokenAgeToken',
       deployed: tokenContract.deployTransaction.wait(),
-      async postDeploy() {
-        await postDeployHelper((resolvedOwner, amount, data) =>
-          resolvedOwner.handleTransfer
-            ? resolvedOwner.handleTransfer(tokenContract, amount, data)
-            : tokenContract.transfer(resolvedOwner.address, amount)
-        )
+      async postDeploy () {
+        await postDeployHelper(async (resolvedOwner, amount, data) => {
+          await new Promise((resolve) => ethers.provider.once('block', resolve)) // HACK: Gas estimates are wrong if we don't wait a block
+          if (resolvedOwner.handleTransfer) { await resolvedOwner.handleTransfer(tokenContract, amount, data) } else { await tokenContract.transfer(resolvedOwner.address, amount) }
+        })
 
         const leftoverBalance = await tokenContract.balanceOf(signer.address)
         if (!leftoverBalance.isZero()) {
@@ -189,9 +188,9 @@ const deployFunctions = {
 
     return {
       address: vestingContract.address,
-      contractName: "Vesting",
+      contractName: 'Vesting',
       deployed: vestingContract.deployTransaction.wait(),
-      async handleTransfer(tokenContract, amount, [target, delayBlocks = '6 months', periodCount = '6', periodBlocks = '6 months']) {
+      async handleTransfer (tokenContract, amount, [target, delayBlocks = '6 months', periodCount = '6', periodBlocks = '6 months']) {
         const startBlock = currentBlock + convertTimeToBlocks(delayBlocks)
         const resolvedTarget = resolve(target)
         const data = ethers.utils.defaultAbiCoder.encode(
@@ -220,7 +219,7 @@ const deployFunctions = {
 
     return {
       address: votingContract.address,
-      contractName: "DeadlineVoting",
+      contractName: 'DeadlineVoting',
       deployed: votingContract.deployTransaction.wait()
     }
   },
@@ -238,9 +237,9 @@ const deployFunctions = {
 
     return {
       address: groupContract.address,
-      contractName: "Group",
+      contractName: 'Group',
       deployed: groupContract.deployTransaction.wait(),
-      async postDeploy() {
+      async postDeploy () {
         await postDeployHelper((resolvedMember, weight) => groupContract.setWeightOf(resolvedMember.address, weight))
         if (groupOwnerAddress === signer.address) {
           const resolvedOwner = resolve(owner)
@@ -263,9 +262,9 @@ const deployFunctions = {
 
     return {
       address: groupContract.address,
-      contractName: "DelegatedGroup",
+      contractName: 'DelegatedGroup',
       deployed: groupContract.deployTransaction.wait(),
-      async postDeploy() {
+      async postDeploy () {
         await postDeployHelper((resolvedMember, weight) => groupContract.setWeightOf(resolvedMember.address, weight))
         if (groupOwnerAddress === signer.address) {
           const resolvedOwner = resolve(owner)
@@ -302,7 +301,7 @@ const deployFunctions = {
 
     return {
       address: bondingCurveContract.address,
-      contractName: "BondingCurve",
+      contractName: 'BondingCurve',
       deployed: bondingCurveContract.deployTransaction.wait()
     }
   },
@@ -320,7 +319,7 @@ const deployFunctions = {
 
     return {
       address: allocationsContract.address,
-      contractName: "Allocations",
+      contractName: 'Allocations',
       deployed: allocationsContract.deployTransaction.wait()
     }
   },
@@ -348,7 +347,7 @@ const deployFunctions = {
 
       return {
         address: tokenContract.address,
-        contractName: "TestERC20",
+        contractName: 'TestERC20',
         deployed: tokenContract.deployTransaction.wait()
       }
     }
@@ -357,7 +356,7 @@ const deployFunctions = {
   }
 }
 
-function createGasTrackingSigner(signer) {
+function createGasTrackingSigner (signer) {
   const resultSigner = Object.create(signer)
   resultSigner.sendTransaction = async function () {
     const transaction = await signer.sendTransaction.apply(this, arguments)
@@ -373,20 +372,20 @@ function createGasTrackingSigner(signer) {
   return resultSigner
 }
 
-function formatWei(weiAmount) {
+function formatWei (weiAmount) {
   const paddedWei = weiAmount.toString().padStart(19, '0').padStart(19 + 5)
 
   return `${paddedWei.slice(0, -18)}.${paddedWei.slice(-18)} ETH`
 }
 
-function formatGasUsed(oldGasUsed, newGasUsed) {
+function formatGasUsed (oldGasUsed, newGasUsed) {
   const gasUsed = newGasUsed[0].sub(oldGasUsed[0])
   const weiUsed = newGasUsed[1].sub(oldGasUsed[1])
 
   return `${gasUsed.toString().padStart(7)} = ${formatWei(weiUsed)}`
 }
 
-async function deployConfig(config, signer) {
+async function deployConfig (config, signer) {
   signer = signer || (await ethers.getSigners())[0]
   signer = createGasTrackingSigner(signer)
 
@@ -404,7 +403,7 @@ async function deployConfig(config, signer) {
     }
   }
 
-  function resolve(key) {
+  function resolve (key) {
     if (resolved[key]) {
       return resolved[key]
     } else if (config.contracts[key]) {
@@ -443,14 +442,13 @@ async function deployConfig(config, signer) {
 
       log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
 
-      if(result.contractName && process.env.ETHERAL_WORKSPACE){
+      if (result.contractName && process.env.ETHERAL_WORKSPACE) {
         log.info(`DEBUGGING !! ${name} ${type} ${key} ${result.address}`)
         await hre.ethernal.push({
           name: result.contractName,
           address: `${result.address}`
-        });
+        })
       }
-
     }
 
     result.config = config.contracts[key]
@@ -481,7 +479,7 @@ async function deployConfig(config, signer) {
   return deployment
 }
 
-async function readConfig(configFile) {
+async function readConfig (configFile) {
   configFile = configFile || (await ask(`Config file to deploy on '${network.name}'`, 'config/apocryph.json'))
 
   const config = JSON.parse(await fs.readFile(configFile, 'utf8'))
@@ -489,7 +487,7 @@ async function readConfig(configFile) {
   return config
 }
 
-async function writeDeployment(config, deployment) {
+async function writeDeployment (config, deployment) {
   config.deploymentFile = config.deploymentFile || (await ask('Deployment file to write', `deployment/${path.basename(config.configFile, '.json')}-${Date.now()}.json`))
 
   await fs.mkdir(path.dirname(config.deploymentFile), { recursive: true })
@@ -498,7 +496,7 @@ async function writeDeployment(config, deployment) {
   //   process.stdout.write(JSON.stringify(deployment))
 }
 
-async function main() {
+async function main () {
   try {
     const config = await readConfig()
     const deployment = await deployConfig(config)
