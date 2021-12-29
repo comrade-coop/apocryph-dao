@@ -443,7 +443,7 @@ async function deployConfig(config, signer) {
 
       log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
 
-      if(result.contractName){
+      if(result.contractName && process.env.ETHERAL_WORKSPACE){
         log.info(`DEBUGGING !! ${name} ${type} ${key} ${result.address}`)
         await hre.ethernal.push({
           name: result.contractName,

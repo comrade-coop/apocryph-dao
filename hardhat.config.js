@@ -22,10 +22,12 @@ task('accounts', 'Prints the list of accounts', async () => {
   }
 })
 
-extendEnvironment((hre) => {
-  hre.ethernalSync = true;
-  hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`;
-});
+if(process.env.ETHERAL_WORKSPACE) {
+  extendEnvironment((hre) => {
+    hre.ethernalSync = true;
+    hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`;
+  });
+}
 
 module.exports = {
   solidity: {
