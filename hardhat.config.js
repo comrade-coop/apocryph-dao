@@ -2,12 +2,14 @@ require('dotenv').config()
 
 const { EthersProviderWrapper } = require('@nomiclabs/hardhat-ethers/internal/ethers-provider-wrapper')
 
-// No sensible way to override the polling interval, and hardhat-ethers waits for a full polling interval after manually mining a block with transactions
-Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
-  get () {
-    return 50
-  }
-})
+if (process.argv.indexOf('--network') === -1) {
+  // No sensible way to override the polling interval, and hardhat-ethers waits for a full polling interval after manually mining a block with transactions
+  Object.defineProperty(EthersProviderWrapper.prototype, 'pollingInterval', {
+    get () {
+      return 50
+    }
+  })
+}
 
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
@@ -46,12 +48,19 @@ module.exports = {
   networks: {
     hardhat: {
       mining: {
-        auto: process.argv.indexOf('node') < 0,
-        interval: process.argv.indexOf('node') >= 0 ? 130 * 1000 : 0
+        auto: true
       }
     }
   }
 }
+
+if (process.argv.indexOf('node') >= 1) {
+  module.exports.networks.hardhat.mining = {
+    auto: false,
+    interval: 2 * 1000
+  }
+}
+
 if (process.env.POLYGON_PRIVATE_KEY) {
   module.exports.networks.polygon_mumbai = {
     url: `${process.env.POLYGON_URL}`,

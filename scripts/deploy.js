@@ -3,7 +3,7 @@ const readline = require('readline')
 const fs = require('fs').promises
 const path = require('path')
 const hre = require('hardhat')
-const ethernal = require('hardhat-ethernal')
+require('hardhat-ethernal')
 
 const log = {
   debug (message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
@@ -161,8 +161,12 @@ const deployFunctions = {
       deployed: tokenContract.deployTransaction.wait(),
       async postDeploy () {
         await postDeployHelper(async (resolvedOwner, amount, data) => {
-          await new Promise((resolve) => ethers.provider.once('block', resolve)) // HACK: Gas estimates are wrong if we don't wait a block
-          if (resolvedOwner.handleTransfer) { await resolvedOwner.handleTransfer(tokenContract, amount, data) } else { await tokenContract.transfer(resolvedOwner.address, amount) }
+          if (resolvedOwner.handleTransfer) {
+            await resolvedOwner.handleTransfer(tokenContract, amount, data)
+          } else {
+            log.trace(`Transfering ${amount} to ${resolvedOwner.config.name} (${resolvedOwner.config.type})...`)
+            await (await tokenContract.transfer(resolvedOwner.address, amount)).wait() // HACK: Gas estimates are wrong if we don't wait the tx
+          }
         })
 
         const leftoverBalance = await tokenContract.balanceOf(signer.address)
@@ -192,11 +196,13 @@ const deployFunctions = {
       deployed: vestingContract.deployTransaction.wait(),
       async handleTransfer (tokenContract, amount, [target, delayBlocks = '6 months', periodCount = '6', periodBlocks = '6 months']) {
         const startBlock = currentBlock + convertTimeToBlocks(delayBlocks)
+        periodBlocks = convertTimeToBlocks(periodBlocks)
         const resolvedTarget = resolve(target)
+        log.trace(`Vesting ${amount} to ${resolvedTarget.config.name} (${resolvedTarget.config.type}) from block ${startBlock} to block ${startBlock + periodBlocks * periodCount} in ${periodCount} allotments...`)
         const data = ethers.utils.defaultAbiCoder.encode(
           ['address', 'uint128', 'uint64', 'uint64'],
-          [resolvedTarget.address, startBlock, periodCount, convertTimeToBlocks(periodBlocks)])
-        await tokenContract['transferAndCall(address,uint256,bytes)'](vestingContract.address, amount, data)
+          [resolvedTarget.address, startBlock, periodCount, periodBlocks])
+        await (await tokenContract['transferAndCall(address,uint256,bytes)'](vestingContract.address, amount, data)).wait() // HACK: Gas estimates are wrong if we don't wait the tx
       }
     }
   },
@@ -243,7 +249,8 @@ const deployFunctions = {
         await postDeployHelper((resolvedMember, weight) => groupContract.setWeightOf(resolvedMember.address, weight))
         if (groupOwnerAddress === signer.address) {
           const resolvedOwner = resolve(owner)
-          await groupContract.setOwner(resolvedOwner.address)
+          log.trace(`Transfering ownership to ${resolvedOwner.config.name} (${resolvedOwner.config.type})...`)
+          await (await groupContract.setOwner(resolvedOwner.address)).wait()
         }
       }
     }
@@ -268,7 +275,8 @@ const deployFunctions = {
         await postDeployHelper((resolvedMember, weight) => groupContract.setWeightOf(resolvedMember.address, weight))
         if (groupOwnerAddress === signer.address) {
           const resolvedOwner = resolve(owner)
-          await groupContract.setOwner(resolvedOwner.address)
+          log.trace(`Transfering ownership to ${resolvedOwner.config.name} (${resolvedOwner.config.type})...`)
+          await (await groupContract.setOwner(resolvedOwner.address)).wait()
         }
       }
     }
