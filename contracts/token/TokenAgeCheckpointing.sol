@@ -79,7 +79,7 @@ abstract contract TokenAgeCheckpointing {
         uint64 currentTime = _currentTime();
 
         address delegateIterator = delegate;
-        while (delegateIterator != address(0)) {
+        while (true) {
             BalanceCheckpoint[] storage balanceCheckpoints = delegatedBalanceCheckpoints[delegateIterator];
             BalanceCheckpoint storage lastCheckpoint = _getLastCheckpoint(balanceCheckpoints);
 
@@ -90,6 +90,10 @@ abstract contract TokenAgeCheckpointing {
 
             newCheckpoint.balance = newBalance;
             newCheckpoint.tokenAge = newTokenAge;
+
+            if (delegateIterator == address(0)) {
+                break;
+            }
 
             delegateIterator = _getLastCheckpoint(delegateCheckpoints[delegateIterator]).delegate;
             require(delegateIterator != delegate);

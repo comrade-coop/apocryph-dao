@@ -51,5 +51,25 @@ describe('DelegatedGroup', function () {
     await expect(tx3).to.emit(group, 'WeightChanged').withArgs(accountD.address, 6)
   })
 
+  it('Modify delegated weight', async function () {
+    const DelegatedGroup = await ethers.getContractFactory('DelegatedGroup')
+    const [accountA, accountB, accountC, accountD] = await ethers.getSigners()
+
+    const group = await DelegatedGroup.deploy([accountA.address, accountB.address], [7, 6], nilAddress)
+    await group.deployTransaction.wait()
+
+    const tx1 = group.modifyWeightOf(accountA.address, -4)
+    await expect(tx1).to.emit(group, 'WeightChanged').withArgs(accountA.address, 3)
+
+    const tx2 = group.connect(accountA).delegate(accountB.address)
+    await expect(tx2).to.emit(group, 'DelegateChanged').withArgs(accountA.address, accountB.address)
+    await expect(tx2).to.emit(group, 'WeightChanged').withArgs(accountB.address, 9)
+
+    const tx3 = group.modifyWeightOf(accountA.address, 4)
+    await expect(tx3).to.emit(group, 'WeightChanged').withArgs(accountA.address, 7)
+    await expect(tx3).to.emit(group, 'WeightChanged').withArgs(accountB.address, 13)
+
+  })
+
   // NOTE: Edge case intentionally not tested: It is currently possible to modify the weight of a group member in such a way that other members cannot un-delegate from him; a negative own weight. As the code required to safeguard against such misuse will require extra gas, and group is supposed to be as lightweight, it is the responsibility of the owner of the group to make sure this does not occur.
 })

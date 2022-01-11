@@ -10,6 +10,7 @@ import "../util/Owned.sol";
 abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
     mapping(uint256 => bytes32) public override rationale;
     mapping(uint256 => bytes32) public override actionsRoot;
+    mapping(uint256 => bool) public override enacted;
 
     address public proposer;
     address public enacter;
@@ -46,10 +47,10 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
     }
 
     function enact(uint256 voteId, VoteAction[] calldata actions_) public onlyACL(enacter) virtual override {
+        require(!enacted[voteId]);
         require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
 
-        delete actionsRoot[voteId]; // ! important, as otherwise would allow multiple enactions
-        // delete rationale[voteId];
+        enacted[voteId] = true; // do before calling untrusted code to prevent reentrancy bugs
 
         for (uint i = 0; i < actions_.length; i++) {
             // solhint-disable-next-line avoid-low-level-calls

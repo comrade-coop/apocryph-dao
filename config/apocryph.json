@@ -42,7 +42,9 @@
       "name": "Core Team",
       "weights": "coreTeamGroup",
       "proposer": "(members)",
-      "enacter": "(members)"
+      "enacter": "(members)",
+      "deadline": "(none)",
+      "quorum": "50%"
     },
 
     "apocryphToken": {
@@ -78,7 +80,8 @@
       "name": "Apocryph Bonding Curve",
       "tokenA": "apocryphToken",
       "tokenB": "bondingCurveToken",
-      "beneficiary": "apocryphAllocations"
+      "beneficiary": "apocryphAllocations",
+      "threshold": "1%"
     }
   }
 }

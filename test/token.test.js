@@ -331,6 +331,7 @@ describe('TokenAgeToken', function () {
     await token.deployTransaction.wait()
 
     const weightWrapper = (address, block) => block === undefined ? token.weightOf(address) : token.weightOfAt(address, block)
+    const totalWeightWrapper = (block) => block === undefined ? token.totalWeight() : token.totalWeightAt(block)
     const delegatedBalanceWrapper = (address, block) => block === undefined ? token.delegatedBalanceOf(address) : token.delegatedBalanceOfAt(address, block)
 
     await testHistory([
@@ -340,6 +341,7 @@ describe('TokenAgeToken', function () {
         expect(await delegatedBalanceWrapper(accountC.address, block)).to.equal(0)
         expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 1)
         expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 1)
+        expect(await totalWeightWrapper(block)).to.equal((initialBalanceA + initialBalanceB) * 1)
       }],
       [3, async _ => {
         await expect(token.connect(accountA).delegate(accountC.address))
@@ -354,6 +356,7 @@ describe('TokenAgeToken', function () {
         expect(await weightWrapper(accountA.address, block)).to.equal(initialBalanceA * 3)
         expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 3)
         expect(await weightWrapper(accountC.address, block)).to.equal(initialBalanceA * 3)
+        expect(await totalWeightWrapper(block)).to.equal((initialBalanceA + initialBalanceB) * 3)
       }],
       [5, async _ => {
         await Promise.all([
@@ -369,6 +372,7 @@ describe('TokenAgeToken', function () {
         expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 5)
         expect(await weightWrapper(accountC.address, block)).to.equal((initialBalanceA - transferAmount) * 5)
         expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 5)
+        expect(await totalWeightWrapper(block)).to.equal((initialBalanceA + initialBalanceB - transferAmount) * 5)
       }],
       [7, async _ => {
         await expect(token.connect(accountB).delegate(accountC.address))
@@ -380,6 +384,7 @@ describe('TokenAgeToken', function () {
         expect(await weightWrapper(accountA.address, block)).to.equal((initialBalanceA - transferAmount) * 7)
         expect(await weightWrapper(accountC.address, block)).to.equal((initialBalanceA - transferAmount) * 7 + initialBalanceB * 7 + transferAmount * 2)
         expect(await weightWrapper(accountB.address, block)).to.equal(initialBalanceB * 7 + transferAmount * 2)
+        expect(await totalWeightWrapper(block)).to.equal((initialBalanceA + initialBalanceB - transferAmount) * 7 + transferAmount * 2)
       }]
     ])
   })

@@ -47,4 +47,15 @@ abstract contract TokenAgeWeights is TokenAgeERC20, IVotingWeights {
         uint64 atTime = _convertTime(atBlock);
         delegate_ = _getCheckpoint(delegateCheckpoints[owner], atTime).delegate;
     }
+
+    function totalWeight() public view returns (uint256 weight) {
+        BalanceCheckpoint storage checkpoint = _getLastCheckpoint(delegatedBalanceCheckpoints[address(0)]);
+        weight = _getTokenAge(checkpoint, _currentTime());
+    }
+
+    function totalWeightAt(uint256 atBlock) public override view returns (uint256 weight) {
+        uint64 atTime = _convertTime(atBlock);
+        BalanceCheckpoint storage checkpoint = _getCheckpoint(delegatedBalanceCheckpoints[address(0)], atTime);
+        weight = _getTokenAge(checkpoint, atTime);
+    }
 }

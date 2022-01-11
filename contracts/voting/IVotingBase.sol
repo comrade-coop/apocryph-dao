@@ -20,4 +20,6 @@ interface IVotingBase {
     function actionsRoot(uint256 voteId) external view returns (bytes32);
 
     function enact(uint256 voteId, VoteAction[] calldata actions_) external; // require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
+
+    function enacted(uint256 voteId) external view returns (bool);
 }

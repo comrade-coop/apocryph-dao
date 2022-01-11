@@ -8,5 +8,6 @@ interface IVotingWeights {
     function weightOf(address _owner) external view returns (uint256);
 
     function delegateOfAt(address _owner, uint256 blockNumber) external view returns (address);
-    // function totalWeightAt(uint256 blockNumber) external view returns (uint256);
+
+    function totalWeightAt(uint256 blockNumber) external view returns (uint256);
 }

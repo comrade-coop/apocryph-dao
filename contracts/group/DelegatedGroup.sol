@@ -34,6 +34,22 @@ contract DelegatedGroup is Group {
         emit DelegateChanged(member, newDelegate);
     }
 
+    function modifyWeightOf(address member, int256 weightChange) public override onlyOwner {
+        if (weightChange > 0) {
+            uint160 weightChangeAbs = uint160(uint256(weightChange));
+            for (address delegateIterator = member; delegateIterator != address(0); delegateIterator = delegateOf(delegateIterator)) {
+                _setWeightOf(delegateIterator, _weightOf(delegateIterator) + weightChangeAbs);
+            }
+            _setWeightOf(address(0), _weightOf(address(0)) + weightChangeAbs);
+        } else {
+            uint160 weightChangeAbs = uint160(uint256(-weightChange));
+            for (address delegateIterator = member; delegateIterator != address(0); delegateIterator = delegateOf(delegateIterator)) {
+                _setWeightOf(delegateIterator, _weightOf(delegateIterator) - weightChangeAbs);
+            }
+            _setWeightOf(address(0), _weightOf(address(0)) - weightChangeAbs);
+        }
+    }
+
     function delegateOf(address member) public override view returns (address) {
         return address(_getLastCheckpoint(delegates[member]).value);
     }

@@ -8,7 +8,7 @@ import "./VotingBase.sol";
 import "../util/Owned.sol";
 import "../interfaces/IVotingWeights.sol";
 
-contract DeadlineVoting is VotingBase, IVoting {
+contract DeadlineQuorumVoting is VotingBase, IVoting {
     struct VoteCounts {
         uint256 countYes;
         uint256 countNo;
@@ -20,12 +20,16 @@ contract DeadlineVoting is VotingBase, IVoting {
     mapping(uint256 => uint256) public voteStartBlock;
 
     IVotingWeights public weights;
-    uint256 public voteDeadline; // in blocks
+    uint256 public voteDeadline; // in blocks, 0 for no deadline
+    uint256 public enactDelay; // in blocks, 0 for immediate
+    uint256 public requiredQuorumFraction; // expressed as fraction of 2^256; (0xFF.....FF) representing 100% of the weight and (0x00) representing none of the weight
 
-    constructor(address owner_, address proposer_, address enacter_, IVotingWeights weights_, uint256 voteDeadline_)
+    constructor(address owner_, address proposer_, address enacter_, IVotingWeights weights_, uint256 voteDeadline_, uint256 enactDelay_, uint256 requiredQuorumFraction_)
             VotingBase(owner_, proposer_, enacter_) {
         weights = weights_;
         voteDeadline = voteDeadline_;
+        enactDelay = enactDelay_;
+        requiredQuorumFraction = requiredQuorumFraction_;
     }
 
     modifier onlyACL(address wanted) virtual override {
@@ -39,8 +43,37 @@ contract DeadlineVoting is VotingBase, IVoting {
         voteDeadline = voteDeadline_;
     }
 
-    function voteActive(uint256 voteId) public view returns (bool) {
-        return block.number < voteStartBlock[voteId] + voteDeadline;
+    function setVoteGraceTime(uint256 enactDelay_) external onlyOwner {
+        enactDelay = enactDelay_;
+    }
+
+    function setRequiredQuorumFraction(uint256 requiredQuorumFraction_) external onlyOwner {
+        requiredQuorumFraction = requiredQuorumFraction_;
+    }
+
+    function isVotable(uint256 voteId) public view returns (bool) {
+        return voteDeadline == 0 || block.number < voteStartBlock[voteId] + voteDeadline;
+    }
+
+    function isEnactable(uint256 voteId) public view returns (bool) {
+        return enactDelay == 0 || block.number >= voteStartBlock[voteId] + enactDelay;
+    }
+
+    function mul512(uint256 a, uint256 b) private pure returns (uint256 r0, uint256 r1) { // via https://medium.com/wicketh/mathemagic-full-multiply-27650fec525d
+        assembly {
+            let mm := mulmod(a, b, not(0))
+            r0 := mul(a, b)
+            r1 := sub(sub(mm, r0), lt(mm, r0))
+        }
+    }
+
+    function requiredQuorum(uint256 voteId) public view returns (uint256 quorum) {
+        uint256 totalWeight = weights.totalWeightAt(voteStartBlock[voteId]);
+        (, quorum) = mul512(totalWeight, requiredQuorumFraction); // get only r1, the high value bits, as we are computing totalWeight * requiredQuorum / 2^256
+    }
+
+    function hasQuorum(uint256 voteId) public view returns (bool) {
+        return (voteCounts[voteId].countYes + voteCounts[voteId].countNo) >= requiredQuorum(voteId);
     }
 
     // Vote
@@ -50,7 +83,7 @@ contract DeadlineVoting is VotingBase, IVoting {
     }
 
     function _vote(uint256 voteId, address voter, VoteStatus newVote) internal {
-        require(voteActive(voteId));
+        require(isVotable(voteId));
         require(newVote != VoteStatus.Nil);
 
         uint256 weight = weights.weightOfAt(voter, voteStartBlock[voteId]) - reducedWeight[voteId][voter];
@@ -91,8 +124,9 @@ contract DeadlineVoting is VotingBase, IVoting {
     }
 
     function enact(uint256 voteId, VoteAction[] calldata actions) public override(VotingBase, IVotingBase) {
-
-        require(!voteActive(voteId) && voteCounts[voteId].countYes > voteCounts[voteId].countNo);
+        require(isEnactable(voteId));
+        require(hasQuorum(voteId));
+        require(voteCounts[voteId].countYes > voteCounts[voteId].countNo);
 
         VotingBase.enact(voteId, actions);
 

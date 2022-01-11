@@ -13,22 +13,26 @@ contract Group is IVotingWeights, Owned, GroupCheckpointing {
 
     constructor(address[] memory initialMembers, uint256[] memory initialWeights, address owner_)
             Owned(owner_ != address(0) ? owner_ : msg.sender) {
+        uint160 totalWeight = 0;
         for (uint256 i = 0; i < initialMembers.length; i++) {
-            _setWeightOf(initialMembers[i], uint160(i < initialWeights.length ? initialWeights[i] : 1));
+            uint256 weight_ = i < initialWeights.length ? initialWeights[i] : 1;
+            require(weight_ < type(uint160).max);
+            uint160 weight = uint160(weight_);
+            totalWeight = totalWeight + weight;
+            _setWeightOf(initialMembers[i], weight);
         }
+        _setWeightOf(address(0), totalWeight);
+
     }
 
-    function setWeightOf(address member, uint256 weight) external onlyOwner {
-        _setWeightOf(member, uint160(weight));
-    }
-
-    function modifyWeightOf(address member, int256 weightChange) external onlyOwner {
+    function modifyWeightOf(address member, int256 weightChange) public virtual onlyOwner {
         if (weightChange > 0) {
             _setWeightOf(member, _weightOf(member) + uint160(uint256(weightChange)));
+            _setWeightOf(address(0), _weightOf(address(0)) + uint160(uint256(weightChange)));
         } else {
             _setWeightOf(member, _weightOf(member) - uint160(uint256(-weightChange)));
+            _setWeightOf(address(0), _weightOf(address(0)) - uint160(uint256(-weightChange)));
         }
-
     }
 
     function _setWeightOf(address member, uint160 weight) internal {
@@ -46,6 +50,10 @@ contract Group is IVotingWeights, Owned, GroupCheckpointing {
 
     function weightOfAt(address member, uint256 atBlock) public override view returns (uint256) {
         return _getCheckpoint(weights[member], _convertTime(atBlock)).value;
+    }
+
+    function totalWeightAt(uint256 atBlock) public override view returns (uint256) {
+        return _getCheckpoint(weights[address(0)], _convertTime(atBlock)).value;
     }
 
     function delegateOf(address) public virtual view returns (address) {
