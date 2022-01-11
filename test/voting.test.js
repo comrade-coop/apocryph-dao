@@ -209,16 +209,15 @@ describe('DeadlingVoting', function () {
     const emptyActionsHash = ethers.utils.keccak256(emptyActionsBytes)
     const rationaleHash = ethers.utils.id('Test rationale')
 
-    const pow2_256 = ethers.BigNumber.from('0x1' + '00'.repeat(32))
+    const quorumDenominator = ethers.BigNumber.from('0x1' + '00'.repeat(32))
 
     for (let [totalWeight, requiredWeight] of [['1000', '10'], ['100000001', '1000003'], ['289316867188186346105704724647', '840137318418557180096497']]) {
-
       totalWeight = ethers.BigNumber.from(totalWeight)
       requiredWeight = ethers.BigNumber.from(requiredWeight)
 
-      const requiredQuorum = pow2_256.mul(requiredWeight.add(1)).div(totalWeight)
+      const requiredQuorum = quorumDenominator.mul(requiredWeight.add(1)).div(totalWeight)
 
-      const roundedRequiredWeight = totalWeight.mul(requiredQuorum).div(pow2_256)
+      const roundedRequiredWeight = totalWeight.mul(requiredQuorum).div(quorumDenominator)
 
       expect(roundedRequiredWeight).to.lte(requiredWeight)
       expect(roundedRequiredWeight).to.gte(requiredWeight.sub(1))

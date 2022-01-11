@@ -1,95 +1,9 @@
 const chalk = require('chalk')
-const readline = require('readline')
 const fs = require('fs').promises
 const path = require('path')
 const hre = require('hardhat')
-require('hardhat-ethernal')
-
-const log = {
-  debug (message) { process.stderr.write(chalk.gray(`DEBUG: ${message}`) + '\n') },
-  trace (message) { process.stderr.write(chalk.gray(`TRACE: ${chalk.gray(message)}`) + '\n') },
-  info (message) { process.stderr.write(`INFO: ${message}` + '\n') },
-  warning (message) { process.stderr.write(chalk.bold.yellow(`WARN: ${message}`) + '\n') },
-  error (message) { process.stderr.write(chalk.bold.red(`ERROR: ${message}`) + '\n') }
-}
-
-// Utilities
-
-const nilAddress = '0x' + '00'.repeat(20)
-const oneAddress = '0x' + '00'.repeat(19) + '01'
-
-const secondsPerBlock =
-  network.name === 'localhost' || network.name === 'hardhat'
-    ? 130
-    : network.name.startsWith('polygon')
-      ? 2
-      : 13
-
-const timeUnits = {
-  '': 1,
-  blocks: 1,
-  seconds: 1 / secondsPerBlock,
-  minutes: 60 / secondsPerBlock,
-  hours: 60 * 60 / secondsPerBlock,
-  days: 24 * 60 * 60 / secondsPerBlock,
-  months: 356 / 12 * 24 * 60 * 60 / secondsPerBlock,
-  years: 356 * 24 * 60 * 60 / secondsPerBlock
-}
-
-function convertTimeToBlocks (time) {
-  const [, number, unit] = /(\d+\.?|\d*\.\d+) ?(\w*)/.exec(time)
-  const scale = timeUnits[unit] || timeUnits[unit + 's']
-  return Math.round(parseFloat(number) * scale)
-}
-
-function ask (question, defaultValue, validator) {
-  if (process.stdin.readableEnded) {
-    process.stderr.write(`=> ${question}? ${defaultValue ? `[${defaultValue}] ${defaultValue}` : ''}\n`)
-    return Promise.resolve(defaultValue)
-  }
-
-  return new Promise((resolve, reject) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr
-    })
-
-    let resolved = false
-    function _resolve (result) {
-      resolved = true
-      rl.close()
-      resolve(result)
-    }
-    rl.on('close', function () {
-      if (!resolved) {
-        process.stderr.write(defaultValue + '\n')
-        resolve(defaultValue)
-      }
-    })
-    rl.on('SIGINT', function () {
-      if (!resolved) {
-        reject(new Error('Cancelled'))
-      }
-    })
-
-    function callback (answer) {
-      if (validator && answer) {
-        Promise.resolve(validator(answer))
-          .then(_resolve)
-          .catch(function (e) {
-            log.error(e.message)
-            rl.question(`=> ${question}? ${defaultValue ? `[${defaultValue}] ` : ''}`, callback)
-          })
-      } else {
-        _resolve(answer || defaultValue)
-      }
-    }
-
-    rl.question(`=> ${question}? ${defaultValue ? `[${defaultValue}] ` : ''}`, callback)
-  })
-}
-
-// Deployment helpers
+const utils = require('./_utils')
+const log = utils.log
 
 function processRelations (relations, resolve) {
   let totalAmount = ethers.BigNumber.from(0)
@@ -195,8 +109,8 @@ const deployFunctions = {
       contractName: 'Vesting',
       deployed: vestingContract.deployTransaction.wait(),
       async handleTransfer (tokenContract, amount, [target, delayBlocks = '6 months', periodCount = '6', periodBlocks = '6 months']) {
-        const startBlock = currentBlock + convertTimeToBlocks(delayBlocks)
-        periodBlocks = convertTimeToBlocks(periodBlocks)
+        const startBlock = currentBlock + utils.convertTimeToBlocks(delayBlocks)
+        periodBlocks = utils.convertTimeToBlocks(periodBlocks)
         const resolvedTarget = resolve(target)
         log.trace(`Vesting ${amount} to ${resolvedTarget.config.name} (${resolvedTarget.config.type}) from block ${startBlock} to block ${startBlock + periodBlocks * periodCount} in ${periodCount} allotments...`)
         const data = ethers.utils.defaultAbiCoder.encode(
@@ -212,20 +126,26 @@ const deployFunctions = {
     owner = '(self)',
     proposer = '(any)',
     enacter = '(any)',
-    deadline = '3 days'
+    deadline = '3 days',
+    enactDelay = '(deadline)',
+    requiredQuorum = '0%'
   }, signer, resolve) {
-    const DeadlineVoting = await ethers.getContractFactory('DeadlineVoting', signer)
+    const DeadlineQuorumVoting = await ethers.getContractFactory('DeadlineQuorumVoting', signer)
+    const quorumDenominator = ethers.BigNumber.from('0x1' + '00'.repeat(32))
 
+    deadline = deadline === '(none)' ? 0 : deadline
+    enactDelay = enactDelay === '(deadline)' ? deadline : deadline === '(instant)' ? 0 : enactDelay
+    requiredQuorum = utils.parseFraction(requiredQuorum)
     const resolvedWeights = resolve(weights).address
-    const resolvedOwner = owner === '(self)' ? nilAddress : resolve(owner).address
-    const resolvedProposer = proposer === '(any)' ? nilAddress : proposer === '(members)' ? oneAddress : resolve(proposer).address
-    const resolvedEnacter = proposer === '(any)' ? nilAddress : proposer === '(members)' ? oneAddress : resolve(enacter).address
+    const resolvedOwner = owner === '(self)' ? utils.nilAddress : resolve(owner).address
+    const resolvedProposer = proposer === '(any)' ? utils.nilAddress : proposer === '(members)' ? utils.oneAddress : resolve(proposer).address
+    const resolvedEnacter = proposer === '(any)' ? utils.nilAddress : proposer === '(members)' ? utils.oneAddress : resolve(enacter).address
 
-    const votingContract = await DeadlineVoting.deploy(resolvedOwner, resolvedProposer, resolvedEnacter, resolvedWeights, convertTimeToBlocks(deadline))
+    const votingContract = await DeadlineQuorumVoting.deploy(resolvedOwner, resolvedProposer, resolvedEnacter, resolvedWeights, utils.convertTimeToBlocks(deadline), utils.convertTimeToBlocks(enactDelay), quorumDenominator.mul(requiredQuorum[0]).div(requiredQuorum[1]))
 
     return {
       address: votingContract.address,
-      contractName: 'DeadlineVoting',
+      contractName: 'DeadlineQuorumVoting',
       deployed: votingContract.deployTransaction.wait()
     }
   },
@@ -289,12 +209,13 @@ const deployFunctions = {
       beneficiary,
       price = ['3', '100', '1'],
       tax = ['1', '100'],
-      threshold = ['1', '100'],
+      threshold = '1%',
       thresholdDeadline = '3 days'
     } = config
 
     const BondingCurve = await ethers.getContractFactory('BondingCurve', signer)
 
+    const thresholdFraction = utils.parseFraction(threshold)
     const resolvedTokenA = resolve(tokenA)
     const initialTokenA = resolvedTokenA.config.tokenHolders
       .filter(x => resolve(x[0]).config === config)
@@ -304,7 +225,7 @@ const deployFunctions = {
       resolvedTokenA.address, resolve(tokenB).address, resolve(beneficiary).address,
       initialTokenA, price[0], price[1], price[2],
       tax[0], tax[1],
-      initialTokenA.mul(threshold[0]).div(threshold[1]), convertTimeToBlocks(thresholdDeadline)
+      initialTokenA.mul(thresholdFraction[0]).div(thresholdFraction[1]), utils.convertTimeToBlocks(thresholdDeadline)
     )
 
     return {
@@ -322,7 +243,7 @@ const deployFunctions = {
     const Allocations = await ethers.getContractFactory('Allocations', signer)
 
     const allocationsContract = await Allocations.deploy(
-      resolve(owner).address, convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
+      resolve(owner).address, utils.convertTimeToBlocks(claimLockTime), globalSupervisors.map(x => resolve(x).address)
     )
 
     return {
@@ -333,7 +254,7 @@ const deployFunctions = {
   },
 
   Fixed: async function ({ name }, signer, resolve) {
-    let address = await ask(`Address for ${name}`, '(use dummy)', ethers.utils.getAddress)
+    let address = await utils.ask(`Address for ${name}`, '(use dummy)', ethers.utils.getAddress)
 
     if (address === '(use dummy)') {
       log.warning(`Using dummy address for ${name}`)
@@ -345,7 +266,7 @@ const deployFunctions = {
   },
 
   FixedERC20: async function ({ name, initialBalance }, signer, resolve) {
-    const address = await ask(`Address for ${name}`, '(deploy TestERC20)', ethers.utils.getAddress)
+    const address = await utils.ask(`Address for ${name}`, '(deploy TestERC20)', ethers.utils.getAddress)
 
     if (address === '(deploy TestERC20)') {
       log.warning(`Deploying dummy contract for ${name}`)
@@ -364,38 +285,9 @@ const deployFunctions = {
   }
 }
 
-function createGasTrackingSigner (signer) {
-  const resultSigner = Object.create(signer)
-  resultSigner.sendTransaction = async function () {
-    const transaction = await signer.sendTransaction.apply(this, arguments)
-    transaction.wait().then((transactionReceipt) => {
-      this.gasUsed = [
-        this.gasUsed[0].add(transactionReceipt.gasUsed),
-        this.gasUsed[1].add(transactionReceipt.gasUsed.mul(transaction.gasPrice))
-      ]
-    })
-    return transaction
-  }
-  resultSigner.gasUsed = [ethers.BigNumber.from(0), ethers.BigNumber.from(0)]
-  return resultSigner
-}
-
-function formatWei (weiAmount) {
-  const paddedWei = weiAmount.toString().padStart(19, '0').padStart(19 + 5)
-
-  return `${paddedWei.slice(0, -18)}.${paddedWei.slice(-18)} ETH`
-}
-
-function formatGasUsed (oldGasUsed, newGasUsed) {
-  const gasUsed = newGasUsed[0].sub(oldGasUsed[0])
-  const weiUsed = newGasUsed[1].sub(oldGasUsed[1])
-
-  return `${gasUsed.toString().padStart(7)} = ${formatWei(weiUsed)}`
-}
-
-async function deployConfig (config, signer) {
+async function deploy (config, signer) {
   signer = signer || (await ethers.getSigners())[0]
-  signer = createGasTrackingSigner(signer)
+  signer = utils.createGasTrackingSigner(signer)
 
   const startGas = signer.gasUsed
 
@@ -417,7 +309,7 @@ async function deployConfig (config, signer) {
     } else if (config.contracts[key]) {
       return { config: config.contracts[key] }
     } else {
-      return { address: key || nilAddress }
+      return { address: key || utils.nilAddress }
     }
   }
 
@@ -429,7 +321,7 @@ async function deployConfig (config, signer) {
     tableSize = Math.max(tableSize, config.contracts[key].name.length + config.contracts[key].type.length)
   }
 
-  log.info(`Signer address is ${' '.repeat(tableSize - 2)} ${signer.address} ${chalk.gray(`(balance:       ${formatWei(await signer.getBalance())})`)}`)
+  log.info(`Signer address is ${' '.repeat(tableSize - 2)} ${signer.address} ${chalk.gray(`(balance:       ${utils.formatWei(await signer.getBalance())})`)}`)
 
   for (const key in config.contracts) {
     const name = config.contracts[key].name
@@ -448,7 +340,7 @@ async function deployConfig (config, signer) {
       result = await deployFunctions[type](config.contracts[key], signer, resolve)
       if (result.deployed) await result.deployed
 
-      log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
+      log.info(`Deployed ${chalk.bold(name)} (${type}) ${' '.repeat(tableSize - name.length - type.length)} at ${result.address} ${chalk.gray(`(gas: ${utils.formatGasUsed(startGas, signer.gasUsed)})`)}`)
 
       if (result.contractName && process.env.ETHERAL_WORKSPACE) {
         log.info(`DEBUGGING !! ${name} ${type} ${key} ${result.address}`)
@@ -478,17 +370,17 @@ async function deployConfig (config, signer) {
 
       await resolved[key].postDeploy()
 
-      log.info(`Initialized ${name} (${type}) ${' '.repeat(tableSize + 43 - name.length - type.length)} ${chalk.gray(`(gas: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
+      log.info(`Initialized ${name} (${type}) ${' '.repeat(tableSize + 43 - name.length - type.length)} ${chalk.gray(`(gas: ${utils.formatGasUsed(startGas, signer.gasUsed)})`)}`)
     }
   }
 
-  log.info(`Finished deployment! ${' '.repeat(tableSize + 36)} ${chalk.gray(`(total: ${formatGasUsed(startGas, signer.gasUsed)})`)}`)
+  log.info(`Finished deployment! ${' '.repeat(tableSize + 36)} ${chalk.gray(`(total: ${utils.formatGasUsed(startGas, signer.gasUsed)})`)}`)
 
   return deployment
 }
 
 async function readConfig (configFile) {
-  configFile = configFile || (await ask(`Config file to deploy on '${network.name}'`, 'config/apocryph.json'))
+  configFile = configFile || (await utils.ask(`Config file to deploy on '${network.name}'`, 'config/apocryph.json'))
 
   const config = JSON.parse(await fs.readFile(configFile, 'utf8'))
   config.configFile = configFile
@@ -496,7 +388,7 @@ async function readConfig (configFile) {
 }
 
 async function writeDeployment (config, deployment) {
-  config.deploymentFile = config.deploymentFile || (await ask('Deployment file to write', `deployment/${path.basename(config.configFile, '.json')}-${Date.now()}.json`))
+  config.deploymentFile = config.deploymentFile || (await utils.ask('Deployment file to write', `deployment/${path.basename(config.configFile, '.json')}-${Date.now()}.json`))
 
   await fs.mkdir(path.dirname(config.deploymentFile), { recursive: true })
   await fs.writeFile(config.deploymentFile, JSON.stringify(deployment, null, 2))
@@ -507,7 +399,7 @@ async function writeDeployment (config, deployment) {
 async function main () {
   try {
     const config = await readConfig()
-    const deployment = await deployConfig(config)
+    const deployment = await deploy(config)
     await writeDeployment(config, deployment)
     process.exit(0)
   } catch (e) {
@@ -516,4 +408,11 @@ async function main () {
   }
 }
 
-main()
+module.exports = {
+  deploy,
+  deployFunctions
+}
+
+if (require.main === module) {
+  main()
+}
