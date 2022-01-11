@@ -76,13 +76,12 @@ describe('DeadlingVoting', function () {
 
     const voteStart = (await ethers.provider.getBlock()).number
     await expect(voting.propose(rationaleHash, actionsHash))
-      .to.emit(voting, 'Proposal').withArgs(0)
+      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
 
     expect(await voting.voteDeadline()).to.equal(10)
 
     await expect(voting.connect(accountA).vote(0, 1))
       .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
-
     await expect(voting.enact(0, actions))
       .to.be.reverted // Too early
 
@@ -112,9 +111,10 @@ describe('DeadlingVoting', function () {
     await group.deployTransaction.wait()
     const voting = await DeadlineQuorumVoting.deploy(nilAddress, nilAddress, nilAddress, group.address, 10, 10, 0)
     await voting.deployTransaction.wait()
+    const rationaleHash = ethers.utils.id('Test rationale')
 
-    await expect(voting.propose(ethers.utils.id('Test rationale'), ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(0)
+    await expect(voting.propose(rationaleHash, ethers.utils.id('Invalid actions hash')))
+      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
 
     await expect(voting.connect(accountA).vote(0, 1))
       .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
@@ -151,8 +151,9 @@ describe('DeadlingVoting', function () {
     await expect(group.connect(accountD).delegate(accountC.address))
       .to.be.reverted // Smoke test for DelegatedGroup
 
-    await expect(voting.propose(ethers.utils.id('Test rationale'), ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(0)
+    const rationaleHash = ethers.utils.id('Test rationale')
+    await expect(voting.propose(rationaleHash, ethers.utils.id('Invalid actions hash')))
+      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
 
     await expect(voting.connect(accountB).vote(0, 2))
       .to.emit(voting, 'Vote').withArgs(0, accountB.address, 2)
@@ -186,7 +187,7 @@ describe('DeadlingVoting', function () {
     await voting.deployTransaction.wait()
 
     await expect(voting.propose(rationaleHash, emptyActionsHash))
-      .to.emit(voting, 'Proposal').withArgs(0)
+      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
 
     await expect(voting.connect(accountA).vote(0, 1)).to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
 
@@ -229,7 +230,7 @@ describe('DeadlingVoting', function () {
       await voting.deployTransaction.wait()
 
       await expect(voting.propose(rationaleHash, emptyActionsHash))
-        .to.emit(voting, 'Proposal').withArgs(0)
+        .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
 
       expect(await voting.requiredQuorum(0)).to.equal(roundedRequiredWeight)
 

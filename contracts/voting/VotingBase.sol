@@ -8,7 +8,6 @@ import "./IVotingBase.sol";
 import "../util/Owned.sol";
 
 abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
-    mapping(uint256 => bytes32) public override rationale;
     mapping(uint256 => bytes32) public override actionsRoot;
     mapping(uint256 => bool) public override enacted;
 
@@ -36,14 +35,13 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
         enacter = enacter_;
     }
 
-    function propose(bytes32 rationale_, bytes32 actionsRoot_) public onlyACL(proposer) virtual override returns (uint256 voteId) {
+    function propose(bytes32 rationale, bytes32 actionsRoot_) public onlyACL(proposer) virtual override returns (uint256 voteId) {
         voteId = _nextVoteId;
         _nextVoteId = _nextVoteId + 1;
 
-        rationale[voteId] = rationale_;
         actionsRoot[voteId] = actionsRoot_;
 
-        emit Proposal(voteId);
+        emit Proposal(voteId, rationale);
     }
 
     function enact(uint256 voteId, VoteAction[] calldata actions_) public onlyACL(enacter) virtual override {
