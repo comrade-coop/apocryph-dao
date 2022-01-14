@@ -61,13 +61,24 @@ if (process.argv.indexOf('node') >= 1) {
   }
 }
 
-if (process.env.POLYGON_PRIVATE_KEY) {
+if (process.env.POLYGON_MUMBAI_PRIVATE_KEY) {
   module.exports.networks.polygon_mumbai = {
-    url: `${process.env.POLYGON_URL}`,
+    url: `${process.env.POLYGON_MUMBAI_URL}`,
     chainId: 80001,
     gas: 'auto',
     gasPrice: 'auto',
-    accounts: [`0x${process.env.POLYGON_PRIVATE_KEY}`],
+    accounts: [`0x${process.env.POLYGON_MUMBAI_PRIVATE_KEY}`],
+    timeout: 20000
+  }
+}
+
+if (process.env.GNOSIS_SOKOL_PRIVATE_KEY) {
+  module.exports.networks.gnosis_sokol = {
+    url: `${process.env.GNOSIS_SOKOL_URL}`,
+    chainId: 77,
+    gas: 'auto',
+    gasPrice: 'auto',
+    accounts: [`0x${process.env.GNOSIS_SOKOL_PRIVATE_KEY}`],
     timeout: 20000
   }
 }
