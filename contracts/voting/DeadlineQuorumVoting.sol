@@ -14,10 +14,11 @@ contract DeadlineQuorumVoting is VotingBase, IVoting {
         uint256 countNo;
     }
 
-    mapping(uint256 => mapping(address => VoteStatus)) public override voteOf;
-    mapping(uint256 => VoteCounts) public voteCounts;
-    mapping(uint256 => mapping(address => uint256)) public reducedWeight;
-    mapping(uint256 => uint256) public voteStartBlock;
+    mapping(bytes32 => mapping(address => VoteStatus)) public override voteOf;
+    mapping(bytes32 => VoteCounts) public voteCounts;
+    mapping(bytes32 => mapping(address => uint256)) public reducedWeight;
+    mapping(bytes32 => uint256) public voteStartBlock;
+    mapping(bytes32 => bool) private _enacted;
 
     IVotingWeights public weights;
     uint256 public voteDeadline; // in blocks, 0 for no deadline
@@ -43,7 +44,7 @@ contract DeadlineQuorumVoting is VotingBase, IVoting {
         voteDeadline = voteDeadline_;
     }
 
-    function setVoteGraceTime(uint256 enactDelay_) external onlyOwner {
+    function setEnactDelay(uint256 enactDelay_) external onlyOwner {
         enactDelay = enactDelay_;
     }
 
@@ -51,11 +52,11 @@ contract DeadlineQuorumVoting is VotingBase, IVoting {
         requiredQuorumFraction = requiredQuorumFraction_;
     }
 
-    function isVotable(uint256 voteId) public view returns (bool) {
+    function isWithinVoteDeadline(bytes32 voteId) public view returns (bool) {
         return voteDeadline == 0 || block.number < voteStartBlock[voteId] + voteDeadline;
     }
 
-    function isEnactable(uint256 voteId) public view returns (bool) {
+    function isAfterEnactDelay(bytes32 voteId) public view returns (bool) {
         return enactDelay == 0 || block.number >= voteStartBlock[voteId] + enactDelay;
     }
 
@@ -67,23 +68,20 @@ contract DeadlineQuorumVoting is VotingBase, IVoting {
         }
     }
 
-    function requiredQuorum(uint256 voteId) public view returns (uint256 quorum) {
+    function requiredQuorum(bytes32 voteId) public view returns (uint256 quorum) {
         uint256 totalWeight = weights.totalWeightAt(voteStartBlock[voteId]);
         (, quorum) = mul512(totalWeight, requiredQuorumFraction); // get only r1, the high value bits, as we are computing totalWeight * requiredQuorum / 2^256
     }
 
-    function hasQuorum(uint256 voteId) public view returns (bool) {
-        return (voteCounts[voteId].countYes + voteCounts[voteId].countNo) >= requiredQuorum(voteId);
-    }
-
     // Vote
 
-    function vote(uint256 voteId, VoteStatus value) external override {
+    function vote(bytes32 voteId, VoteStatus value) external override {
         _vote(voteId, msg.sender, value);
     }
 
-    function _vote(uint256 voteId, address voter, VoteStatus newVote) internal {
-        require(isVotable(voteId));
+    function _vote(bytes32 voteId, address voter, VoteStatus newVote) internal {
+        require(proposed(voteId));
+        require(isWithinVoteDeadline(voteId));
         require(newVote != VoteStatus.Nil);
 
         uint256 weight = weights.weightOfAt(voter, voteStartBlock[voteId]) - reducedWeight[voteId][voter];
@@ -115,22 +113,24 @@ contract DeadlineQuorumVoting is VotingBase, IVoting {
         emit Vote(voteId, voter, newVote);
     }
 
-    // Propose/enact hooks (NOTE: observe lack of onlyACL() modifiers, since we are counting on calling the VotingBase implementations directly)
+    // Propose/enact hooks
 
-    function propose(bytes32 rationale_, bytes32 actionsRoot_) public override(VotingBase, IVotingBase) returns (uint256 voteId) {
-        voteId = VotingBase.propose(rationale_, actionsRoot_);
-
+    function _proposeHook(bytes32 voteId) internal override {
         voteStartBlock[voteId] = block.number;
     }
 
-    function enact(uint256 voteId, VoteAction[] calldata actions) public override(VotingBase, IVotingBase) {
-        require(isEnactable(voteId));
-        require(hasQuorum(voteId));
+    function proposed(bytes32 voteId) public override view returns (bool) {
+        return voteStartBlock[voteId] != 0;
+    }
+
+    function _enactHook(bytes32 voteId) internal override {
+        require(isAfterEnactDelay(voteId));
+        require(voteCounts[voteId].countYes >= requiredQuorum(voteId));
         require(voteCounts[voteId].countYes > voteCounts[voteId].countNo);
+        _enacted[voteId] = true;
+    }
 
-        VotingBase.enact(voteId, actions);
-
-        // delete voteStartBlock[voteId];
-        // delete voteCounts[voteId];
+    function enacted(bytes32 voteId) public override(VotingBase, IVotingBase) view returns (bool) {
+        return _enacted[voteId];
     }
 }

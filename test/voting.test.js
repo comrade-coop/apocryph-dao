@@ -75,28 +75,29 @@ describe('DeadlingVoting', function () {
     const rationaleHash = ethers.utils.id('Test rationale') // <- should be stored in IPFS
 
     const voteStart = (await ethers.provider.getBlock()).number
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, actionsHash]))
     await expect(voting.propose(rationaleHash, actionsHash))
-      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
+      .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, actionsHash)
 
     expect(await voting.voteDeadline()).to.equal(10)
 
-    await expect(voting.connect(accountA).vote(0, 1))
-      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
-    await expect(voting.enact(0, actions))
+    await expect(voting.connect(accountA).vote(voteId, 1))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountA.address, 1)
+    await expect(voting.enact(voteId, rationaleHash, actions))
       .to.be.reverted // Too early
 
     await advanceTime(voteStart + 10)
 
-    await expect(voting.connect(accountB).vote(0, 1))
+    await expect(voting.connect(accountB).vote(voteId, 1))
       .to.be.reverted // Too late
-    await expect(voting.enact(0, actions))
+    await expect(voting.enact(rationaleHash, actions))
       .to.be.reverted // Too early
 
     await advanceTime(voteStart + 20)
 
-    await expect(voting.enact(0, actions))
-      .to.emit(voting, 'Enaction').withArgs(0)
-    await expect(voting.enact(0, actions))
+    await expect(voting.enact(rationaleHash, actions))
+      .to.emit(voting, 'Enaction').withArgs(voteId, rationaleHash, actionsHash)
+    await expect(voting.enact(rationaleHash, actions))
       .to.be.reverted // Reentrancy check
 
     expect(await voting.voteDeadline()).to.equal(15)
@@ -112,20 +113,22 @@ describe('DeadlingVoting', function () {
     const voting = await DeadlineQuorumVoting.deploy(nilAddress, nilAddress, nilAddress, group.address, 10, 10, 0)
     await voting.deployTransaction.wait()
     const rationaleHash = ethers.utils.id('Test rationale')
+    const actionsHash = ethers.utils.id('Invalid actions hash')
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, actionsHash]))
 
-    await expect(voting.propose(rationaleHash, ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
+    await expect(voting.propose(rationaleHash, actionsHash))
+      .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, actionsHash)
 
-    await expect(voting.connect(accountA).vote(0, 1))
-      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
+    await expect(voting.connect(accountA).vote(voteId, 1))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountA.address, 1)
 
-    await expect(voting.connect(accountB).vote(0, 1))
+    await expect(voting.connect(accountB).vote(voteId, 1))
       .to.be.reverted
 
     await expect(group.connect(accountOwner).modifyWeightOf(accountB.address, 1))
       .to.not.be.reverted
 
-    await expect(voting.connect(accountB).vote(0, 1))
+    await expect(voting.connect(accountB).vote(voteId, 1))
       .to.be.reverted
   })
 
@@ -152,24 +155,27 @@ describe('DeadlingVoting', function () {
       .to.be.reverted // Smoke test for DelegatedGroup
 
     const rationaleHash = ethers.utils.id('Test rationale')
-    await expect(voting.propose(rationaleHash, ethers.utils.id('Invalid actions hash')))
-      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
+    const actionsHash = ethers.utils.id('Invalid actions hash')
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, actionsHash]))
 
-    await expect(voting.connect(accountB).vote(0, 2))
-      .to.emit(voting, 'Vote').withArgs(0, accountB.address, 2)
-    expect((await voting.voteCounts(0)).toString()).to.equal([0, 11 + 12].toString())
+    await expect(voting.propose(rationaleHash, actionsHash))
+      .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, actionsHash)
 
-    await expect(voting.connect(accountA).vote(0, 1))
-      .to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
-    expect((await voting.voteCounts(0)).toString()).to.equal([11, 12].toString())
+    await expect(voting.connect(accountB).vote(voteId, 2))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountB.address, 2)
+    expect((await voting.voteCounts(voteId)).toString()).to.equal([0, 11 + 12].toString())
 
-    await expect(voting.connect(accountD).vote(0, 2))
-      .to.emit(voting, 'Vote').withArgs(0, accountD.address, 2)
-    expect((await voting.voteCounts(0)).toString()).to.equal([11, 12 + 13 + 14].toString())
+    await expect(voting.connect(accountA).vote(voteId, 1))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountA.address, 1)
+    expect((await voting.voteCounts(voteId)).toString()).to.equal([11, 12].toString())
 
-    await expect(voting.connect(accountC).vote(0, 1))
-      .to.emit(voting, 'Vote').withArgs(0, accountC.address, 1)
-    expect((await voting.voteCounts(0)).toString()).to.equal([11 + 13, 12 + 14].toString())
+    await expect(voting.connect(accountD).vote(voteId, 2))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountD.address, 2)
+    expect((await voting.voteCounts(voteId)).toString()).to.equal([11, 12 + 13 + 14].toString())
+
+    await expect(voting.connect(accountC).vote(voteId, 1))
+      .to.emit(voting, 'Vote').withArgs(voteId, accountC.address, 1)
+    expect((await voting.voteCounts(voteId)).toString()).to.equal([11 + 13, 12 + 14].toString())
   })
 
   it('Requires majority weight', async function () {
@@ -186,18 +192,19 @@ describe('DeadlingVoting', function () {
     const voting = await DeadlineQuorumVoting.deploy(nilAddress, nilAddress, nilAddress, group.address, 0, 0, 0)
     await voting.deployTransaction.wait()
 
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, emptyActionsHash]))
     await expect(voting.propose(rationaleHash, emptyActionsHash))
-      .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
+      .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, emptyActionsHash)
 
-    await expect(voting.connect(accountA).vote(0, 1)).to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
+    await expect(voting.connect(accountA).vote(voteId, 1)).to.emit(voting, 'Vote').withArgs(voteId, accountA.address, 1)
 
-    await expect(voting.connect(accountB).vote(0, 2)).to.emit(voting, 'Vote').withArgs(0, accountB.address, 2)
+    await expect(voting.connect(accountB).vote(voteId, 2)).to.emit(voting, 'Vote').withArgs(voteId, accountB.address, 2)
 
-    await expect(voting.enact(0, [])).to.be.reverted
+    await expect(voting.enact(rationaleHash, [])).to.be.reverted
 
-    await expect(voting.connect(accountC).vote(0, 1)).to.emit(voting, 'Vote').withArgs(0, accountC.address, 1)
+    await expect(voting.connect(accountC).vote(voteId, 1)).to.emit(voting, 'Vote').withArgs(voteId, accountC.address, 1)
 
-    await expect(voting.enact(0, [])).to.emit(voting, 'Enaction').withArgs(0)
+    await expect(voting.enact(rationaleHash, [])).to.emit(voting, 'Enaction').withArgs(voteId, rationaleHash, emptyActionsHash)
   })
 
   it('Requires quorum weights', async function () {
@@ -208,6 +215,7 @@ describe('DeadlingVoting', function () {
     const emptyActionsBytes = ethers.utils.defaultAbiCoder.encode(['(address,bytes)[]'], [[]])
     const emptyActionsHash = ethers.utils.keccak256(emptyActionsBytes)
     const rationaleHash = ethers.utils.id('Test rationale')
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, emptyActionsHash]))
 
     const quorumDenominator = ethers.BigNumber.from('0x1' + '00'.repeat(32))
 
@@ -229,17 +237,44 @@ describe('DeadlingVoting', function () {
       await voting.deployTransaction.wait()
 
       await expect(voting.propose(rationaleHash, emptyActionsHash))
-        .to.emit(voting, 'Proposal').withArgs(0, rationaleHash)
+        .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, emptyActionsHash)
 
-      expect(await voting.requiredQuorum(0)).to.equal(roundedRequiredWeight)
+      expect(await voting.requiredQuorum(voteId)).to.equal(roundedRequiredWeight)
 
-      await expect(voting.connect(accountA).vote(0, 1)).to.emit(voting, 'Vote').withArgs(0, accountA.address, 1)
+      await expect(voting.connect(accountA).vote(voteId, 1)).to.emit(voting, 'Vote').withArgs(voteId, accountA.address, 1)
 
-      await expect(voting.enact(0, [])).to.be.reverted
+      await expect(voting.enact(rationaleHash, [])).to.be.reverted
 
-      await expect(voting.connect(accountB).vote(0, 2)).to.emit(voting, 'Vote').withArgs(0, accountB.address, 2)
+      await expect(voting.connect(accountB).vote(voteId, 2)).to.emit(voting, 'Vote').withArgs(voteId, accountB.address, 2)
 
-      await expect(voting.enact(0, [])).to.emit(voting, 'Enaction').withArgs(0)
+      await expect(voting.enact(rationaleHash, [])).to.be.reverted
+
+      await expect(voting.connect(accountB).vote(voteId, 1)).to.emit(voting, 'Vote').withArgs(voteId, accountB.address, 1)
+
+      await expect(voting.enact(rationaleHash, [])).to.emit(voting, 'Enaction').withArgs(voteId, rationaleHash, emptyActionsHash)
     }
+  })
+
+  it('Requires vote to be proposed first', async function () {
+    const TestStaticGroup = await ethers.getContractFactory('TestStaticGroup')
+    const DeadlineQuorumVoting = await ethers.getContractFactory('DeadlineQuorumVoting')
+    const [accountA, accountB, accountC] = await ethers.getSigners()
+
+    const emptyActionsBytes = ethers.utils.defaultAbiCoder.encode(['(address,bytes)[]'], [[]])
+    const emptyActionsHash = ethers.utils.keccak256(emptyActionsBytes)
+    const rationaleHash = ethers.utils.id('Test rationale')
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, emptyActionsHash]))
+
+    const group = await TestStaticGroup.deploy([accountA.address], [1])
+    await group.deployTransaction.wait()
+    const voting = await DeadlineQuorumVoting.deploy(nilAddress, nilAddress, nilAddress, group.address, 0, 0, 0)
+    await voting.deployTransaction.wait()
+
+    await expect(voting.connect(accountA).vote(voteId, 1)).to.be.reverted
+
+    await expect(voting.propose(rationaleHash, emptyActionsHash))
+      .to.emit(voting, 'Proposal').withArgs(voteId, rationaleHash, emptyActionsHash)
+
+    await expect(voting.connect(accountA).vote(voteId, 1)).to.not.be.reverted
   })
 })

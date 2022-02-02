@@ -8,13 +8,8 @@ import "./IVotingBase.sol";
 import "../util/Owned.sol";
 
 abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
-    mapping(uint256 => bytes32) public override actionsRoot;
-    mapping(uint256 => bool) public override enacted;
-
     address public proposer;
     address public enacter;
-
-    uint256 internal _nextVoteId;
 
     constructor(address owner_, address proposer_, address enacter_)
             Owned(owner_ != address(0) ? owner_ : address(this)) {
@@ -35,20 +30,22 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
         enacter = enacter_;
     }
 
-    function propose(bytes32 rationale, bytes32 actionsRoot_) public onlyACL(proposer) virtual override returns (uint256 voteId) {
-        voteId = _nextVoteId;
-        _nextVoteId = _nextVoteId + 1;
+    function propose(bytes32 rationale, bytes32 actionsHash) public onlyACL(proposer) virtual override returns (bytes32 voteId) {
+        voteId = keccak256(abi.encodePacked(rationale, actionsHash));
 
-        actionsRoot[voteId] = actionsRoot_;
+        _proposeHook(voteId);
 
-        emit Proposal(voteId, rationale);
+        emit Proposal(voteId, rationale, actionsHash);
     }
 
-    function enact(uint256 voteId, VoteAction[] calldata actions_) public onlyACL(enacter) virtual override {
-        require(!enacted[voteId]);
-        require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
+    function _proposeHook(bytes32 voteId) internal virtual; // Must make proposed(voteId) return true on future calls
 
-        enacted[voteId] = true; // do before calling untrusted code to prevent reentrancy bugs
+    function enact(bytes32 rationale, VoteAction[] calldata actions_) public onlyACL(enacter) virtual override {
+        bytes32 actionsHash = keccak256(abi.encode(actions_));
+        bytes32 voteId = keccak256(abi.encodePacked(rationale, actionsHash));
+
+        require(!enacted(voteId));
+        _enactHook(voteId);
 
         for (uint i = 0; i < actions_.length; i++) {
             // solhint-disable-next-line avoid-low-level-calls
@@ -57,6 +54,10 @@ abstract contract VotingBase is Owned, IVotingBase, ERC721Holder {
             require(success);
         }
 
-        emit Enaction(voteId);
+        emit Enaction(voteId, rationale, actionsHash);
     }
+
+    function _enactHook(bytes32 voteId) internal virtual; // Must make enacted(voteId) return true on future calls
+
+    function enacted(bytes32 voteId) public virtual override view returns (bool);
 }

@@ -53,6 +53,7 @@ describe('Gas usage scenarios', function () {
     const actionsBytes = ethers.utils.defaultAbiCoder.encode(['(address,bytes)[]'], [actions])
     const actionsHash = ethers.utils.keccak256(actionsBytes)
     const rationaleHash = ethers.utils.id('Example rationale')
+    const voteId = ethers.utils.keccak256(ethers.utils.concat([rationaleHash, actionsHash]))
 
     // Do some transactions
 
@@ -66,19 +67,19 @@ describe('Gas usage scenarios', function () {
     await (await voting.connect(userA).propose(rationaleHash, actionsHash)).wait()
 
     await advanceToBlock(startBlock + 15)
-    await (await voting.connect(userA).vote(0, 1)).wait()
+    await (await voting.connect(userA).vote(voteId, 1)).wait()
 
     await advanceToBlock(startBlock + 20)
     await (await token.connect(userB).transfer(userC.address, transferAmount)).wait()
 
     await advanceToBlock(startBlock + 25)
-    await (await voting.connect(userB).vote(0, 2)).wait()
+    await (await voting.connect(userB).vote(voteId, 2)).wait()
 
     await advanceToBlock(startBlock + 30)
-    await (await voting.connect(userC).vote(0, 1)).wait()
+    await (await voting.connect(userC).vote(voteId, 1)).wait()
 
     await advanceToBlock(startBlock + 40)
-    await (await voting.connect(userC).enact(0, actions)).wait()
+    await (await voting.connect(userC).enact(rationaleHash, actions)).wait()
 
     await advanceToBlock(startBlock + 50)
     await (await allocations.connect(userC).increaseClaim(token.address, transferAmount.div(2))).wait()
