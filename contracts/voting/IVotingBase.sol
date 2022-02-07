@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 pragma abicoder v2;
 
 interface IVotingBase {
-    event Proposal(uint256 indexed voteId, bytes32 rationale);
-    event Enaction(uint256 indexed voteId);
+    event Proposal(bytes32 indexed voteId, bytes32 rationale, bytes32 actionsHash);
+    event Enaction(bytes32 indexed voteId, bytes32 rationale, bytes32 actionsHash);
 
     struct VoteAction {
         // uint96 value;
@@ -14,11 +14,14 @@ interface IVotingBase {
         // deadline
     }
 
-    function propose(bytes32 rationale, bytes32 actionsRoot_) external returns (uint256);
+    // voteId = keccak256(abi.encodePacked(rationale, actionsHash))
+    // actionsHash = keccak256(abi.encode(actions_));
 
-    function actionsRoot(uint256 voteId) external view returns (bytes32);
+    function propose(bytes32 rationale, bytes32 actionsHash) external returns (bytes32 voteId);
 
-    function enact(uint256 voteId, VoteAction[] calldata actions_) external; // require(keccak256(abi.encode(actions_)) == actionsRoot[voteId]);
+    function proposed(bytes32 voteId) external view returns (bool);
 
-    function enacted(uint256 voteId) external view returns (bool);
+    function enact(bytes32 rationale, VoteAction[] calldata actions) external;
+
+    function enacted(bytes32 voteId) external view returns (bool);
 }

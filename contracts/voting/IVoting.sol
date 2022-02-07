@@ -6,10 +6,10 @@ pragma abicoder v2;
 import "./IVotingBase.sol";
 
 interface IVoting is IVotingBase {
-    event Vote(uint256 indexed voteId, address indexed voter, VoteStatus value);
+    event Vote(bytes32 indexed voteId, address indexed voter, VoteStatus value);
 
     enum VoteStatus { Nil, Yes, No }
 
-    function vote(uint256 voteId, VoteStatus value) external;
-    function voteOf(uint256 voteId, address voter) external returns (VoteStatus);
+    function vote(bytes32 voteId, VoteStatus value) external;
+    function voteOf(bytes32 voteId, address voter) external returns (VoteStatus);
 }
