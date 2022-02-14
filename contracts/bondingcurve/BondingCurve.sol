@@ -150,36 +150,22 @@ contract BondingCurve is IERC1363Spender, Owned {
         emit Sell(recepient, amountA, amountB);
     }
 
-    // Calculate prices and totals
+    // Calculate price
 
-    function getBuyPrice()  public view returns (uint256 price) {
-        uint256 preTaxAmountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(balanceA - 1);
-        return preTaxAmountB  * priceDivisor;
-    }
-
-    function getSellPrice()  public view returns (uint256 price) {
-        uint256 preTaxAmountB = calculateDueBalanceB(balanceA+1) - calculateDueBalanceB(balanceA);
-        uint256 taxAmountB = preTaxAmountB * tax;
-        uint256 amountB = (preTaxAmountB - uint128(taxAmountB));
-
-        return amountB  * priceDivisor;
-    }
-
-    function getBuyTotal(uint128 amountA) public view returns (uint256 price) {
-
+    function getBuyPrice(uint128 amountA) public view returns (uint256 price) {
         if (int128(balanceA) - int128(amountA) < 0) {
             return calculateDueBalanceB(balanceA)  * priceDivisor;
         }
 
-        uint256 preTaxAmountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(balanceA-amountA);
-        return preTaxAmountB  * priceDivisor;
+        uint256 preTaxAmountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(balanceA - amountA);
+        return preTaxAmountB;
     }
 
-    function getSellTotal(uint128 amountA) public view returns (uint256 price) {
-        uint256 preTaxAmountB = calculateDueBalanceB(balanceA+amountA) - calculateDueBalanceB(balanceA);
+    function getSellPrice(uint128 amountA) public view returns (uint256 price) {
+        uint256 preTaxAmountB = calculateDueBalanceB(balanceA + amountA) - calculateDueBalanceB(balanceA);
         uint256 taxAmountB = preTaxAmountB * tax;
         uint256 amountB = (preTaxAmountB - uint128(taxAmountB));
-        return amountB  * priceDivisor;
+        return amountB;
     }
 
     // ERC1363

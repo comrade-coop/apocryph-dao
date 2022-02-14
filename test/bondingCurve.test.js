@@ -95,19 +95,14 @@ describe('Bonding curve', function () {
 
     await tokenB.connect(accountB).approve(bondingCurve.address, balanceB)
 
-    console.log("Buying")
+    // Buying
     for (let i = 1; i <= tokenASupply; i++) {
 
       var buyAmount = 1
-      var balanceA =  await bondingCurve.connect(accountB).balanceA()
-      var price = await bondingCurve.connect(accountB).getBuyPrice()
-      var buyPrice = await bondingCurve.connect(accountB).getBuyTotal(buyAmount)
+      var price = await bondingCurve.connect(accountB).getBuyPrice(1)
+      var totalBuyPrice = await bondingCurve.connect(accountB).getBuyPrice(buyAmount)
 
-      console.log(
-        "| Remaining balance: " + ethers.FixedNumber.fromValue(balanceA, 0).toString() +
-        "| Price: " + ethers.FixedNumber.fromValue(price, 0).toString() +
-        "| Buy Amount: " + buyAmount +
-        "| Total Price: " + ethers.FixedNumber.fromValue(buyPrice, 0).toString())
+      await expect(price * buyAmount).to.be.at.least(totalBuyPrice)
 
       balanceB -= i
 
@@ -121,19 +116,14 @@ describe('Bonding curve', function () {
 
     await tokenA.connect(accountB).approve(bondingCurve.address, tokenASupply)
 
-    console.log("Selling")
+    // Selling
     for (let i = tokenASupply; i >= 1; i--) {
 
       var sellAmount = 1
-      var balanceA =  await bondingCurve.connect(accountB).balanceA()
-      var price = await bondingCurve.connect(accountB).getSellPrice()
-      var buyPrice = await bondingCurve.connect(accountB).getSellTotal(sellAmount)
+      var price = await bondingCurve.connect(accountB).getSellPrice(1)
+      var totalBuyPrice = await bondingCurve.connect(accountB).getSellPrice(sellAmount)
 
-      console.log(
-        "| Remaining balance: " + ethers.FixedNumber.fromValue(balanceA, 0).toString() +
-        "| Price: " + ethers.FixedNumber.fromValue(price, 0).toString() +
-        "| Sell Amount: " + sellAmount +
-        "| Total Price: " + ethers.FixedNumber.fromValue(buyPrice, 0).toString())
+      await expect(price * buyAmount).to.be.at.most(totalBuyPrice)
 
       balanceB += i
 
