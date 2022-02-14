@@ -94,7 +94,21 @@ describe('Bonding curve', function () {
     let balanceB = initialBalanceB
 
     await tokenB.connect(accountB).approve(bondingCurve.address, balanceB)
+
+    console.log("Buying")
     for (let i = 1; i <= tokenASupply; i++) {
+
+      var buyAmount = 1
+      var balanceA =  await bondingCurve.connect(accountB).balanceA()
+      var price = await bondingCurve.connect(accountB).getBuyPrice()
+      var buyPrice = await bondingCurve.connect(accountB).getBuyTotal(buyAmount)
+
+      console.log(
+        "| Remaining balance: " + ethers.FixedNumber.fromValue(balanceA, 0).toString() +
+        "| Price: " + ethers.FixedNumber.fromValue(price, 0).toString() +
+        "| Buy Amount: " + buyAmount +
+        "| Total Price: " + ethers.FixedNumber.fromValue(buyPrice, 0).toString())
+
       balanceB -= i
 
       await expect(bondingCurve.connect(accountB).buy(1, i, nilAddress))
@@ -106,7 +120,21 @@ describe('Bonding curve', function () {
     expect(await tokenB.balanceOf(accountB.address)).to.equal(0) // Sanity check
 
     await tokenA.connect(accountB).approve(bondingCurve.address, tokenASupply)
+
+    console.log("Selling")
     for (let i = tokenASupply; i >= 1; i--) {
+
+      var sellAmount = 1
+      var balanceA =  await bondingCurve.connect(accountB).balanceA()
+      var price = await bondingCurve.connect(accountB).getSellPrice()
+      var buyPrice = await bondingCurve.connect(accountB).getSellTotal(sellAmount)
+
+      console.log(
+        "| Remaining balance: " + ethers.FixedNumber.fromValue(balanceA, 0).toString() +
+        "| Price: " + ethers.FixedNumber.fromValue(price, 0).toString() +
+        "| Sell Amount: " + sellAmount +
+        "| Total Price: " + ethers.FixedNumber.fromValue(buyPrice, 0).toString())
+
       balanceB += i
 
       await expect(bondingCurve.connect(accountB).sell(1, i, nilAddress))
