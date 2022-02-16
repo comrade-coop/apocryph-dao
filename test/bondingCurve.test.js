@@ -121,9 +121,9 @@ describe('Bonding curve', function () {
 
       var sellAmount = 1
       var price = await bondingCurve.connect(accountB).getSellPrice(1)
-      var totalBuyPrice = await bondingCurve.connect(accountB).getSellPrice(sellAmount)
+      var totalSellPrice = await bondingCurve.connect(accountB).getSellPrice(sellAmount)
 
-      await expect(price * buyAmount).to.be.at.most(totalBuyPrice)
+      await expect(price * buyAmount).to.be.at.most(totalSellPrice)
 
       balanceB += i
 
