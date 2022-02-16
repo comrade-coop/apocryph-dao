@@ -94,7 +94,16 @@ describe('Bonding curve', function () {
     let balanceB = initialBalanceB
 
     await tokenB.connect(accountB).approve(bondingCurve.address, balanceB)
+
+    // Buying
     for (let i = 1; i <= tokenASupply; i++) {
+
+      var buyAmount = 1
+      var price = await bondingCurve.connect(accountB).getBuyPrice(1)
+      var totalBuyPrice = await bondingCurve.connect(accountB).getBuyPrice(buyAmount)
+
+      await expect(price * buyAmount).to.be.at.least(totalBuyPrice)
+
       balanceB -= i
 
       await expect(bondingCurve.connect(accountB).buy(1, i, nilAddress))
@@ -106,7 +115,16 @@ describe('Bonding curve', function () {
     expect(await tokenB.balanceOf(accountB.address)).to.equal(0) // Sanity check
 
     await tokenA.connect(accountB).approve(bondingCurve.address, tokenASupply)
+
+    // Selling
     for (let i = tokenASupply; i >= 1; i--) {
+
+      var sellAmount = 1
+      var price = await bondingCurve.connect(accountB).getSellPrice(1)
+      var totalSellPrice = await bondingCurve.connect(accountB).getSellPrice(sellAmount)
+
+      await expect(price * buyAmount).to.be.at.most(totalSellPrice)
+
       balanceB += i
 
       await expect(bondingCurve.connect(accountB).sell(1, i, nilAddress))
