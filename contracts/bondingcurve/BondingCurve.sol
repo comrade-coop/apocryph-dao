@@ -152,20 +152,18 @@ contract BondingCurve is IERC1363Spender, Owned {
 
     // Calculate price
 
-    function getBuyPrice(uint128 amountA) public view returns (uint256 price) {
+    function getBuyPrice(uint128 amountA) public view returns (uint256 amountB) {
         if (int128(balanceA) - int128(amountA) < 0) {
             return calculateDueBalanceB(balanceA)  * priceDivisor;
         }
 
-        uint256 preTaxAmountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(balanceA - amountA);
-        return preTaxAmountB;
+        amountB = calculateDueBalanceB(balanceA) - calculateDueBalanceB(balanceA - amountA);
     }
 
-    function getSellPrice(uint128 amountA) public view returns (uint256 price) {
+    function getSellPrice(uint128 amountA) public view returns (uint256 amountB) {
         uint256 preTaxAmountB = calculateDueBalanceB(balanceA + amountA) - calculateDueBalanceB(balanceA);
         uint256 taxAmountB = preTaxAmountB * tax;
-        uint256 amountB = (preTaxAmountB - uint128(taxAmountB));
-        return amountB;
+        amountB = (preTaxAmountB - uint128(taxAmountB));
     }
 
     // ERC1363
