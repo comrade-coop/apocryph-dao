@@ -153,7 +153,7 @@ contract BondingCurve is IERC1363Spender, Owned {
     // Calculate price
 
     function getBuyPrice(uint128 amountA) public view returns (uint256 amountB) {
-        if (int128(balanceA) - int128(amountA) < 0) {
+        if (amountA > balanceA) {
             return calculateDueBalanceB(balanceA)  * priceDivisor;
         }
 
