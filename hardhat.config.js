@@ -13,8 +13,8 @@ if (process.argv.indexOf('--network') === -1) {
 
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
+require('@openzeppelin/hardhat-upgrades')
 require('hardhat-gas-reporter')
-require('hardhat-ethernal')
 
 task('accounts', 'Prints the list of accounts', async () => {
   const accounts = await ethers.getSigners()
@@ -25,6 +25,7 @@ task('accounts', 'Prints the list of accounts', async () => {
 })
 
 if (process.env.ETHERAL_WORKSPACE) {
+  require('hardhat-ethernal')
   extendEnvironment((hre) => {
     hre.ethernalSync = true
     hre.ethernalWorkspace = `${process.env.ETHERAL_WORKSPACE}`
