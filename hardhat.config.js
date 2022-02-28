@@ -15,6 +15,7 @@ require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-solhint')
 require('@openzeppelin/hardhat-upgrades')
 require('hardhat-gas-reporter')
+require('hardhat-deploy')
 
 task('accounts', 'Prints the list of accounts', async () => {
   const accounts = await ethers.getSigners()
@@ -52,6 +53,16 @@ module.exports = {
         auto: true
       }
     }
+  },
+  namedAccounts: {
+    deployer: { default: 0 },
+    updater: {
+      default: 1,
+      hardhat: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      localhost: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      goerli: '0x7122eD700FE28aE6752A1928f2CDB79c67E91245',
+      polygon: '0x972f2A2ce350Ed97488a3a53C03ECB028354049a',
+    },
   }
 }
 
@@ -69,6 +80,28 @@ if (process.env.POLYGON_MUMBAI_PRIVATE_KEY) {
     gas: 'auto',
     gasPrice: 'auto',
     accounts: [`0x${process.env.POLYGON_MUMBAI_PRIVATE_KEY}`],
+    timeout: 20000
+  }
+}
+
+if (process.env.POLYGON_PRIVATE_KEY) {
+  module.exports.networks.polygon = {
+    url: `${process.env.POLYGON_URL}`,
+    chainId: 137,
+    gas: 'auto',
+    gasPrice: 'auto',
+    accounts: [`0x${process.env.POLYGON_PRIVATE_KEY}`],
+    timeout: 20000
+  }
+}
+
+if (process.env.GOERLI_PRIVATE_KEY) {
+  module.exports.networks.goerli = {
+    url: `${process.env.GOERLI_URL}`,
+    chainId: 5,
+    gas: 'auto',
+    gasPrice: 'auto',
+    accounts: [`0x${process.env.GOERLI_PRIVATE_KEY}`],
     timeout: 20000
   }
 }
