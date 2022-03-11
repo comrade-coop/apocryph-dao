@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeCastUpgradeable.sol";
 import "./LockerUpgradeable.sol";
-import "hardhat/console.sol";
 
 abstract contract TimeLockerUpgradeable is LockerUpgradeable {
     uint256 public lockTime;

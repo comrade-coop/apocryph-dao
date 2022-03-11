@@ -56,8 +56,15 @@ module.exports = {
   },
   namedAccounts: {
     deployer: { default: 0 },
-    updater: {
+    comradeBoard: {
       default: 1,
+      hardhat: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      localhost: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      goerli: '0x7122eD700FE28aE6752A1928f2CDB79c67E91245',
+      polygon: '0xf2dd51C9A9EEbFA44B1a644e07D35960673ADB08',
+    },
+    coreTeam: {
+      default: 2,
       hardhat: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
       localhost: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
       goerli: '0x7122eD700FE28aE6752A1928f2CDB79c67E91245',
