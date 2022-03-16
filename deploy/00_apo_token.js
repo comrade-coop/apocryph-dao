@@ -1,5 +1,5 @@
 module.exports = async () => {
-    const {deployer, comradeBoard: updater} = await getNamedAccounts()
+    const {deployer, updater} = await getNamedAccounts()
     const ApocryphToken = await ethers.getContractFactory('ApocryphToken', await ethers.getSigner(deployer))
 
     let proxyAddress
@@ -13,9 +13,9 @@ module.exports = async () => {
 
       if (implAddress != currentAddress) {
         await deployments.catchUnknownSigner(deployments.execute('ApocryphToken', {from: updater}, 'upgradeTo', implAddress))
-        console.log('Update ApocryphToken Impl  done ->', proxy.address, implAddress)
+        console.log('Update ApocryphToken Impl done ->', proxy.address, implAddress)
       } else {
-        console.log('Up to date ApocryphToken Impl   --')
+        console.log('Up to date ApocryphToken Impl --')
       }
       proxyAddress = proxy.address
     } else {

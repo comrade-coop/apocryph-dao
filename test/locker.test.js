@@ -11,12 +11,12 @@ describe('Locker', function () { // TODO: Use mock instead of actual wizard file
     }
   }
 
-  async function deploy () {
+  async function deploy (owner) {
     const LockedApocryphToken = await ethers.getContractFactory('LockedApocryphToken')
     const ApocryphToken = await ethers.getContractFactory('ApocryphToken')
     const ApocryphLocker = await ethers.getContractFactory('ApocryphLocker')
 
-    const apocryphToken = await upgrades.deployProxy(ApocryphToken)
+    const apocryphToken = await upgrades.deployProxy(ApocryphToken, [owner])
     const lockedApocryphToken = await upgrades.deployProxy(LockedApocryphToken)
     const apocryphLocker = await upgrades.deployProxy(ApocryphLocker, [apocryphToken.address, lockedApocryphToken.address])
 
@@ -26,12 +26,13 @@ describe('Locker', function () { // TODO: Use mock instead of actual wizard file
   }
 
   it('Basic deploy', async function () {
-    await deploy()
+    const [deployer] = await ethers.getSigners()
+    await deploy(deployer.address)
   })
 
   it('Lock / unlock', async function () {
-    const { locker, token, lockedToken } = await deploy()
     const [deployer, user] = await ethers.getSigners()
+    const { locker, token, lockedToken } = await deploy(deployer.address)
 
     await locker.setLockTime(100)
     await token.connect(deployer).transfer(user.address, ethers.FixedNumber.from('4'))
@@ -71,8 +72,8 @@ describe('Locker', function () { // TODO: Use mock instead of actual wizard file
   })
 
   it('Overlapping Lock / unlock', async function () {
-    const { locker, token, lockedToken } = await deploy()
     const [deployer, user] = await ethers.getSigners()
+    const { locker, token, lockedToken } = await deploy(deployer.address)
 
     await locker.setLockTime(100)
     await token.connect(deployer).transfer(user.address, ethers.FixedNumber.from('4'))
